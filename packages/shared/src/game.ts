@@ -71,7 +71,7 @@ function adjacent(player: Player, unit: Unit): Unit[] {
   return index < 0 ? [] : [player.field[index - 1], player.field[index + 1]].filter((card): card is Unit => !!card);
 }
 export function protectingFishman(field: readonly (Unit | null)[], target: Unit): Unit | undefined {
-  if (target.hp <= 0 || target.card === 'base_8_fishman') return;
+  if (target.card === 'base_8_fishman') return;
   return field.find(source => {
     if (!source || source.hp <= 0) return false;
     const aura = abilityOf(source, 'protect_non_fishman_allies_low_hp');
@@ -615,10 +615,10 @@ function applyHit(state: Game, side: Side, target: Unit, source: Unit, normal: n
   if (!defender.field.includes(target) || target.hp <= 0) return none;
   const attacker = state.players[other(side)];
   if (mode.attack && target.flipped) target.flipped = false;
-  const protector = protectingFishman(defender.field, target);
+  const protector = mode.attack && !mode.doubleSweep ? protectingFishman(defender.field, target) : undefined;
   if (protector) {
     state.log.push({ kind: 'effect', battle: state.battle, round: state.round, unit: target.id, source: protector.id, player: side,
-      text: `鱼人的濒危庇护使${definition(target).name}免疫这次伤害` });
+      text: `鱼人的濒危庇护使${definition(target).name}免疫这次攻击` });
     return none;
   }
   const ignoreDefense = abilityOf(source, 'ignore_defense_except_inherent');

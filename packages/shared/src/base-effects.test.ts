@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { cardBySerial, cards } from './cards';
-import { addUnit, applyIntent, attackOptions, createGame, forecastCombat, maxHp, type Game, type Side, type Unit } from './game';
+import { addUnit, applyIntent, attackOptions, createGame, maxHp, type Game, type Side, type Unit } from './game';
 
 function put(game: Game, side: Side, slot: number, name: string, star = 1): Unit {
   const card = cardBySerial.get(name) ?? cards.find(card => card.name === name)!;
@@ -106,62 +106,28 @@ test('巨鸟：中位双目标，其他位置正对单目标', () => {
   expect(attackOptions(game, 0, giant).targets).toEqual([right]);
   expect(() => attack(game, giant, left)).toThrow('目标不合法');
 });
-test('鱼人自己到 1 HP 才会保护友军，先手普通攻击、真伤和主动技都挡住', () => {
+test('鱼人：各星级只在 1 HP 时保护非鱼人友军，效果能破坏，退场结束保护', () => {
   const game = stage();
   const bird = put(game, 0, 2, '1');
   const doctor = put(game, 0, 0, '5');
-  const corpse = put(game, 1, 2, '9');
+  const ally = put(game, 1, 2, '3');
   const fish = put(game, 1, 4, '8', 3);
-  game.players[1].skills.push('skill_reverse_flag');
-  corpse.hp = 1;
   fish.hp = 2;
-  expect(attack(game, bird, corpse).players[1].field[2]).toBeNull();
-
+  expect(attack(game, bird, ally).players[1].field[2]).toBeNull();
   fish.hp = 1;
-  const normal = { type: 'attack', id: bird.id, target: corpse.id } as const;
-  const skill = { type: 'ability', id: doctor.id, target: corpse.id } as const;
-  for (const intent of [normal, skill]) {
-    expect(forecastCombat(game, 0, intent).events).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'effect', text: expect.stringContaining('死尸免疫这次伤害') }),
-    ]));
-    expect(applyIntent(game, 0, intent).players[1].field[2]?.hp).toBe(1);
-  }
-
-  const astrologer = put(game, 0, 2, '占星魔术师');
-  expect(attack(game, astrologer, corpse).players[1].field[2]?.hp).toBe(1);
-  corpse.hp = 3;
-  expect(attack(game, astrologer, corpse).players[1].field[2]?.hp).toBe(3);
-});
-test('鱼人受击降到 1 HP 后立即保护死尸，即使鱼人已行动', () => {
-  const game = stage();
-  const first = put(game, 0, 0, '8', 2);
-  const second = put(game, 0, 2, '1');
-  const corpse = put(game, 1, 2, '9');
-  const fish = put(game, 1, 4, '8');
-  corpse.hp = 1;
-  const damaged = attack(game, first, fish);
-  expect(damaged.players[1].field[4]?.hp).toBe(1);
-  const afterFish = applyIntent(damaged, 1, { type: 'attack', id: fish.id, target: first.id });
-  expect(afterFish.players[1].field[4]?.acted).toBe(true);
-  expect(attack(afterFish, second, corpse).players[1].field[2]?.hp).toBe(1);
-});
-test('鱼人不受庇护，鱼人退场即失去保护，死尸自毁仍生效', () => {
-  const game = stage();
-  const bird = put(game, 0, 2, '1');
-  const doctor = put(game, 0, 0, '5');
-  const corpse = put(game, 1, 2, '9');
-  const fish = put(game, 1, 4, '8');
-  fish.hp = 1;
-  corpse.hp = 1;
-  const killedFish = applyIntent(game, 0, { type: 'ability', id: doctor.id, target: fish.id });
-  expect(killedFish.players[1].field[4]).toBeNull();
-  killedFish.active = 0;
-  expect(attack(killedFish, bird, corpse).players[1].field[2]).toBeNull();
-
-  game.active = 1;
-  const selfDestruct = applyIntent(game, 1, { type: 'ability', id: corpse.id, target: bird.id });
-  expect(selfDestruct.players[1].field[2]).toBeNull();
-  expect(selfDestruct.players[1].field[4]?.hp).toBe(1);
+  game.players[1].skills.push('skill_reverse_flag');
+  expect(attack(game, bird, ally).players[1].field[2]?.hp).toBe(5);
+  ally.hp = 1;
+  const use = (target: Unit) => applyIntent(game, 0, { type: 'ability', id: doctor.id, target: target.id });
+  expect(use(ally).players[1].field[2]).toBeNull();
+  const next = use(fish);
+  expect(next.players[1].field[4]).toBeNull();
+  next.active = 0;
+  expect(attack(next, bird, ally).players[1].field[2]).toBeNull();
+  game.players[1].field[2] = fish;
+  put(game, 1, 4, '8');
+  game.players[1].field[4]!.hp = 1;
+  expect(attack(game, bird, fish).players[1].field[2]).toBeNull();
 });
 test('士兵棋从双方各自左2、右2、中位只可对打指定站位', () => {
   for (const side of [0, 1] as const) {
