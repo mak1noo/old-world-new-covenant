@@ -1,0 +1,222 @@
+.match {
+  --gold: #efd394;
+  --muted: #c3bacd;
+  --stroke: #65576a;
+  --panel: #171420;
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  color: #f3e9d8;
+}
+.match::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(180deg, #0f0c1bd1, #11111a50 51%, #0d0c15d4),
+    url("/art/ruined-abbey.webp") center 43% / cover no-repeat #151321;
+}
+.match-header {
+  border-bottom-color: #b08d627d;
+  box-shadow: 0 17px 31px -30px #e9ba82;
+}
+.match-header .brand-link {
+  color: #f7dca1;
+  font-family: "Noto Serif SC", "Songti SC", SimSun, Georgia, serif;
+  font-size: 25px;
+  text-shadow: 0 0 22px #e6ac5670;
+}
+.match .brand-icon {
+  color: #efd394;
+  text-shadow: 0 0 14px #c49456;
+}
+.match-counter strong { color: #f0deba; }
+.match-header .quiet, .match .command-panel button:not(.primary), .match .combat-controls button:not(.primary) {
+  background: #1c1626dc;
+  border-color: #64546c;
+  color: #e7dadd;
+}
+.match button.primary {
+  background: linear-gradient(180deg, #ebca89, #b98a48);
+  border-color: #e7c288;
+  box-shadow: inset 0 0 0 1px #5f3a1c59, 0 2px 10px #0e080f8c;
+  color: #241509;
+}
+.match button.primary:not(:disabled):hover { background: #f3d398; }
+.match .battlefield {
+  position: relative;
+  border-color: #a889607d;
+  background: linear-gradient(180deg, #302031c7 0%, #151121b5 50%, #132423b8 100%);
+  box-shadow: inset 0 0 0 2px #151320af, 0 5px 25px #0c0b159c;
+}
+.match .battlefield::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 5px;
+  border: 1px solid #c7ab7833;
+  border-radius: 6px;
+}
+.match .battle-log, .match .card-inspector {
+  border-color: #9d805e8a;
+  background: linear-gradient(155deg, #291b2dde, #181323f5);
+  box-shadow: inset 0 0 0 2px #13101db2, 0 8px 18px #08061065;
+}
+.match .battle-log h2, .match .card-inspector h2, .match .bench h2,
+.match .command-panel h2, .match .phase strong {
+  font-family: "Noto Serif SC", "Songti SC", SimSun, Georgia, serif;
+  color: #ecd19b;
+  letter-spacing: .06em;
+}
+.match .battle-log .events li { border-color: #b08f6c40; }
+.match .board-row .empty {
+  color: #d4c5d9;
+  border-color: #947c9478;
+  background: radial-gradient(ellipse at center, #30243a54, #16132180);
+}
+.match .board-row .empty span { color: #c3a77d; }
+.match .friendly .empty {
+  border-color: #76978379;
+  background: radial-gradient(ellipse at center, #2d4f4050, #141a217a);
+}
+.match .board-row .locked {
+  background: repeating-linear-gradient(-55deg, #171422af 0 7px, #2e2535b8 7px 14px);
+}
+.match .unit-card {
+  border-color: #a58866;
+  background: linear-gradient(152deg, #413844, #221c2e 72%);
+  box-shadow: inset 0 0 0 2px #1a1723aa, 0 3px 8px #130a12aa;
+}
+.match .friendly .unit-card.base { background: linear-gradient(146deg, #30433d, #1b222b 73%); }
+.match .unit-card.fusion {
+  background: linear-gradient(146deg, #55314f, #2a203d 75%);
+  border-color: #b08b9e;
+}
+.match .unit-card.highFusion {
+  background: linear-gradient(146deg, #614c32, #2c2137 78%);
+  border-color: #d2ac6b;
+}
+.match .unit-card strong { color: #fff0d4; }
+.match .unit-card.actionable { border-color: #efd08d; box-shadow: inset 0 0 14px #d9b67330; }
+.match .unit-card.targeted { outline: 2px solid #ffaa8b; }
+.match .phase { border-color: #b18b655c; }
+.match .hp { border-color: #75636d; background: #171322e6; }
+.match .enemy-bench { border-color: #8c6a79; background: #21152282; }
+.match .bench { border-color: #8489717f; background: #1b2b2a7f; }
+.match .command-panel, .match .combat-controls {
+  border-color: #997c5c80;
+  background: linear-gradient(135deg, #292132ee, #191621ed);
+}
+.match .raw-card { background: linear-gradient(135deg, #423241, #231e32); border-color: #8e746f; }
+.match .shop-card { background: linear-gradient(145deg, #423529, #292334); border-color: #947451; }
+.match .avatar { border-color: #b7a47c; background: #344a42; color: #dbcfaf; }
+.match .enemy-avatar { border-color: #a57983; background: #4d2b42; color: #f1bfb7; }
+.match dialog, .card-guide-dialog {
+  border-color: #ad8c63;
+  background: linear-gradient(155deg, #291f31, #1b1722);
+  box-shadow: inset 0 0 0 3px #17131d, 0 20px 65px #050405d0;
+}
+.fusion-filters { display: flex; gap: 6px; margin: 0 0 10px; }
+.fusion-groups h4, .fusion-groups h5 { margin: 7px 0 4px; }
+.fusion-groups h4 { font-size: 11px; color: var(--muted); }
+.fusion-groups h5 { font-size: 12px; color: var(--gold); }
+.guide-cards .fusion-race { display: grid; gap: 4px; }
+.card-recipe { margin: 10px 0; }
+.card-recipe h4 { margin: 0 0 4px; color: var(--gold); }
+.recipe-materials { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 9px; }
+.recipe-link {
+  display: inline; background: none; border: 0; padding: 0; min-height: auto;
+  color: #f0d0a0; text-decoration: underline; text-decoration-color: #a78a72;
+  text-underline-offset: 2px;
+}
+.recipe-link:not(:disabled):hover { background: transparent; color: #fff1d2; }
+.recipe-result { font-weight: 750; }
+.recipe-outcomes { padding: 0; list-style: none; margin: 0; }
+.recipe-outcomes li { border-top: 1px solid #564b59; padding: 5px 0; }
+.forecast-dialog h3 { margin: 0 0 7px; font-size: 15px; color: #e9cd92; }
+.forecast-events { list-style: none; padding: 0; margin: 0; }
+.forecast-events li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; padding: 6px 0; border-bottom: 1px solid #584d58; }
+.forecast-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 14px; }
+.battle-opening {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  background: radial-gradient(ellipse at center, #21172ded, #100c1bc9 47%, #0e0b1370);
+  color: #ffdda2;
+}
+.battle-opening strong {
+  font-family: "Noto Serif SC", "Songti SC", SimSun, Georgia, serif;
+  font-size: clamp(42px, 6.3vw, 108px);
+  line-height: 1.15;
+  letter-spacing: .18em;
+  text-shadow: 0 0 36px #c88c58ce, 0 2px 3px #301d20;
+}
+.opening-insignia { font-size: 38px; line-height: 1; color: #d6ad78; }
+.opening-particles { position: absolute; inset: 0; }
+.opening-particles i { position: absolute; top: 48%; left: 50%; width: 5px; height: 5px; border-radius: 50%; background: #f2b86b; }
+.battle-outcome {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, #20172ded, #0e0b137a 75%);
+}
+.battle-outcome-panel {
+  display: grid;
+  gap: 6px;
+  min-width: 340px;
+  padding: 22px 34px;
+  text-align: center;
+  color: #f0d89d;
+  background: linear-gradient(145deg, #2f2735, #1a1421);
+  border: 1px solid #b39165;
+  box-shadow: inset 0 0 0 3px #211927, 0 10px 45px #09060cba;
+}
+.battle-outcome-panel > strong {
+  font: 700 clamp(34px, 5vw, 60px)/1.25 "Noto Serif SC", "Songti SC", SimSun, serif;
+  letter-spacing: .1em;
+}
+.battle-outcome-panel p { margin: 0; color: #f3e6d5; font-size: 17px; }
+.battle-outcome-panel p b { color: #ffac9e; }
+.battle-outcome[data-outcome="loss"] .battle-outcome-panel { border-color: #b47e78; color: #f2b5aa; }
+.match .raw-card.number-only { border-color: #ad83ad; }
+.match .raw-card .number-only-label { color: #e3bfe6; }
+@media (prefers-reduced-motion: no-preference) {
+  .battle-opening { animation: opening-veil var(--ceremony-duration) ease-in-out both; }
+  .battle-opening strong { animation: opening-title var(--ceremony-duration) ease-in-out both; }
+  .opening-particles i { animation: opening-ember var(--ceremony-duration) ease-out both; box-shadow: 0 0 9px #ffbf69; }
+  .battle-outcome { animation: outcome-veil var(--ceremony-duration) ease-in-out both; }
+  .battle-outcome-panel { animation: outcome-panel var(--ceremony-duration) ease-out both; }
+  .opening-particles i:nth-child(3n) { width: 3px; height: 3px; background: #bda9ed; }
+  .opening-particles i:nth-child(2n) { animation-delay: .14s; }
+  @keyframes opening-veil {
+    0%, 100% { opacity: 0; }
+    24%, 72% { opacity: 1; }
+  }
+  @keyframes opening-title {
+    0% { transform: translateY(13px) scale(.94); }
+    35%, 64% { transform: translateY(0) scale(1); }
+    100% { transform: translateY(-10px) scale(1.04); }
+  }
+  @keyframes opening-ember {
+    0% { opacity: 0; transform: translateX(30px); }
+    33% { opacity: .9; }
+    100% { opacity: 0; transform: translateX(min(40vw, 480px)) scale(.2); }
+  }
+  @keyframes outcome-veil {
+    0%, 100% { opacity: 0; }
+    12%, 88% { opacity: 1; }
+  }
+  @keyframes outcome-panel {
+    0% { transform: translateY(14px) scale(.95); }
+    18%, 100% { transform: none; }
+  }
+}
+@media (prefers-reduced-motion: reduce) { .opening-particles { display: none; } }

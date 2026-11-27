@@ -1,0 +1,31 @@
+{
+  "name": "old-world-new-covenant",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -k \"tsx watch packages/server/src/index.ts\" \"vite packages/client --host 0.0.0.0\"",
+    "test": "vitest run",
+    "build": "tsc --noEmit && vite build packages/client && node scripts/build-standalone.mjs",
+    "start": "tsx packages/server/src/index.ts"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "ws": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.3.3",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "@vitest/coverage-v8": "3.2.7",
+    "concurrently": "^9.2.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.6",
+    "vitest": "^3.2.7"
+  }
+}

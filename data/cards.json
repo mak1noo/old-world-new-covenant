@@ -1,0 +1,2073 @@
+{
+  "meta": {
+    "gameName": "旧界新约",
+    "rulesVersion": "2.0-补全版",
+    "dataVersion": "2026-11-26",
+    "description": "本文件是《旧界新约》数字版的唯一卡牌数据源。引擎必须为 abilities[].effect 中出现的每个 effect id 实现行为并配单元测试。",
+    "companionDocs": [
+      "01-规则书.md",
+      "02-卡牌数据.md",
+      "04-界面与交互规范.md",
+      "05-开发阶段与验收标准.md",
+      "06-待确认裁定表.md"
+    ]
+  },
+  "constants": {
+    "playerHp": 15,
+    "startingLp": 0,
+    "handDrawBase": 7,
+    "shopSize": 5,
+    "shopBuyCostLp": 3,
+    "shopRefreshCostLp": 1,
+    "fieldSlots": 5,
+    "battleCap": 50,
+    "deckSizePerPlayer": 36,
+    "deckSerialCopies": 3,
+    "serials": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "a"
+    ],
+    "minDamage": 1,
+    "hpLossFormula": "1 + floor((battleIndex - 1) / 5)",
+    "sellPricesLp": {
+      "sublimate1": 1,
+      "sublimate2": 2,
+      "sublimate3": 3,
+      "fusion1": 4,
+      "fusion2": 6,
+      "highFusion": 8
+    },
+    "battleRoundCap": 50
+  },
+  "positions": {
+    "order": [
+      "left2",
+      "left1",
+      "mid",
+      "right1",
+      "right2"
+    ],
+    "namesZh": {
+      "left2": "左2",
+      "left1": "左1",
+      "mid": "中",
+      "right1": "右1",
+      "right2": "右2"
+    },
+    "aSlot": {
+      "exists": true,
+      "unlocked": false,
+      "note": "位于每个玩家视角主站位最左侧的额外站位；当前版本没有卡牌可放入，界面显示锁定空槽。"
+    },
+    "targeting": {
+      "front": "与攻击者同一列的敌方站位",
+      "front_left": "攻击者所在列左邻列的敌方站位",
+      "front_right": "攻击者所在列右邻列的敌方站位",
+      "left1": "攻击者视角第 1 列的敌方站位",
+      "left2": "攻击者视角第 0 列的敌方站位",
+      "mid": "敌方中间列",
+      "right1": "攻击者视角第 3 列的敌方站位",
+      "right2": "攻击者视角第 4 列的敌方站位",
+      "any": "敌方任意主站位",
+      "all": "敌方全部主站位"
+    }
+  },
+  "baseCards": [
+    {
+      "id": "base_0_angel",
+      "category": "base",
+      "serial": "0",
+      "name": "天使",
+      "race": "幻想种",
+      "maxStar": 3,
+      "hpByStar": [
+        4,
+        6,
+        10
+      ],
+      "apByStar": [
+        3,
+        6,
+        8
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "mid",
+          "left2",
+          "right2"
+        ],
+        "damageByStar": [
+          2,
+          3,
+          4
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "angel_heal_on_damage",
+          "name": "1效果",
+          "kind": "triggered",
+          "mandatory": false,
+          "trigger": "on_deal_damage",
+          "effect": "heal_self",
+          "params": {
+            "valueByStar": [
+              1,
+              2,
+              3
+            ]
+          },
+          "text": "成功造成伤害后，自身HP回复1/2/3。"
+        }
+      ]
+    },
+    {
+      "id": "base_1_bird",
+      "category": "base",
+      "serial": "1",
+      "name": "小鸟",
+      "race": "兽种",
+      "maxStar": 3,
+      "hpByStar": [
+        4,
+        5,
+        6
+      ],
+      "apByStar": [
+        3,
+        6,
+        8
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front"
+        ],
+        "damageByStar": [
+          6,
+          10,
+          12
+        ],
+        "true": false
+      },
+      "abilities": []
+    },
+    {
+      "id": "base_2_soldier",
+      "category": "base",
+      "serial": "2",
+      "name": "士兵棋",
+      "race": "幻想种",
+      "maxStar": 3,
+      "hpByStar": [
+        5,
+        8,
+        12
+      ],
+      "apByStar": [
+        2,
+        5,
+        6
+      ],
+      "attack": {
+        "mode": "positional",
+        "damageByStar": [
+          2,
+          3,
+          4
+        ],
+        "true": false,
+        "rules": [
+          {
+            "ownPos": "right2",
+            "targets": [
+              "left2"
+            ]
+          },
+          {
+            "ownPos": "left2",
+            "targets": [
+              "right2"
+            ]
+          },
+          {
+            "ownPos": "mid",
+            "targets": [
+              "mid"
+            ]
+          }
+        ]
+      },
+      "abilities": [
+        {
+          "id": "soldier_adjacent_hp_max",
+          "name": "一效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "adjacent_allies_hp_max",
+          "params": {
+            "valueByStar": [
+              1,
+              2,
+              3
+            ]
+          },
+          "text": "给左右相邻一格的友军增加1/2/3点HP上限（必发）。"
+        }
+      ]
+    },
+    {
+      "id": "base_3_banner",
+      "category": "base",
+      "serial": "3",
+      "name": "战旗",
+      "race": "幻想种",
+      "maxStar": 3,
+      "hpByStar": [
+        5,
+        8,
+        12
+      ],
+      "apByStar": [
+        2,
+        5,
+        6
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front",
+          "front_left",
+          "front_right"
+        ],
+        "damageByStar": [
+          2,
+          3,
+          4
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "banner_adjacent_attack",
+          "name": "一效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "adjacent_allies_attack",
+          "params": {
+            "valueByStar": [
+              2,
+              4,
+              6
+            ]
+          },
+          "text": "给左右相邻一格的友军增加2/4/6点攻击力。"
+        }
+      ]
+    },
+    {
+      "id": "base_4_apostle",
+      "category": "base",
+      "serial": "4",
+      "name": "使徒",
+      "race": "人类种",
+      "maxStar": 3,
+      "hpByStar": [
+        5,
+        6,
+        10
+      ],
+      "apByStar": [
+        3,
+        6,
+        10
+      ],
+      "attack": null,
+      "abilities": [
+        {
+          "id": "apostle_active_heal",
+          "name": "一效果",
+          "kind": "active",
+          "mandatory": false,
+          "limit": "once_per_small_round",
+          "effect": "active_self_hp_heal_allies",
+          "params": {
+            "selfHpCost": 1,
+            "healByStar": [
+              2,
+              3,
+              4
+            ],
+            "includeSelf": false
+          },
+          "text": "自身HP-1，回复其他全体友方HP2/3/4。"
+        }
+      ]
+    },
+    {
+      "id": "base_5_plague",
+      "category": "base",
+      "serial": "5",
+      "name": "疫医",
+      "race": "人类种",
+      "maxStar": 3,
+      "hpByStar": [
+        4,
+        6,
+        8
+      ],
+      "apByStar": [
+        3,
+        6,
+        10
+      ],
+      "attack": null,
+      "abilities": [
+        {
+          "id": "plague_active_damage_or_heal",
+          "name": "一效果",
+          "kind": "active",
+          "mandatory": false,
+          "limit": "once_per_small_round",
+          "effect": "active_damage_or_heal",
+          "params": {
+            "damageByStar": [
+              1,
+              1,
+              2
+            ],
+            "healByStar": [
+              1,
+              1,
+              2
+            ],
+            "choose": "enemy_or_ally"
+          },
+          "text": "主动技：选择一名敌人或友军，造成1/1/2伤害或回复1/1/2血量，一小轮一次。"
+        }
+      ]
+    },
+    {
+      "id": "base_6_knight",
+      "category": "base",
+      "serial": "6",
+      "name": "骑士棋",
+      "race": "幻想种",
+      "maxStar": 3,
+      "hpByStar": [
+        5,
+        8,
+        12
+      ],
+      "apByStar": [
+        3,
+        5,
+        7
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front",
+          "mid"
+        ],
+        "damageByStar": [
+          2,
+          3,
+          4
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "knight_mid_bonus",
+          "name": "一效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "mid_position_bonus_damage",
+          "params": {
+            "bonus": 3
+          },
+          "text": "放在中间站位时伤害+3（必发，不分星级）。"
+        }
+      ]
+    },
+    {
+      "id": "base_7_giant_bird",
+      "category": "base",
+      "serial": "7",
+      "name": "巨鸟",
+      "race": "兽种",
+      "maxStar": 3,
+      "hpByStar": [
+        6,
+        8,
+        12
+      ],
+      "apByStar": [
+        1,
+        2,
+        3
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front"
+        ],
+        "damageByStar": [
+          2,
+          4,
+          6
+        ],
+        "true": false,
+        "alternate": {
+          "condition": {
+            "ownPos": "mid"
+          },
+          "targets": [
+            "left1",
+            "right1"
+          ],
+          "damageByStar": [
+            2,
+            3,
+            4
+          ],
+          "hitAll": true,
+          "true": false
+        }
+      },
+      "abilities": []
+    },
+    {
+      "id": "base_8_fishman",
+      "category": "base",
+      "serial": "8",
+      "name": "鱼人",
+      "race": "兽种",
+      "maxStar": 3,
+      "hpByStar": [
+        4,
+        8,
+        10
+      ],
+      "apByStar": [
+        2,
+        3,
+        4
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front",
+          "left2",
+          "right2"
+        ],
+        "damageByStar": [
+          2,
+          3,
+          4
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "fishman_death_protection",
+          "name": "一效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "death_protection_low_hp",
+          "params": {
+            "thresholdByStar": [
+              1,
+              2,
+              3
+            ],
+            "immuneAttackDamage": true,
+            "immuneAttackDestroy": true,
+            "effectDestroyStillWorks": true
+          },
+          "text": "自身当前HP小于等于1/2/3时，完全免疫攻击伤害且不会被攻击破坏；效果破坏仍然有效（必发）。"
+        }
+      ]
+    },
+    {
+      "id": "base_9_corpse",
+      "category": "base",
+      "serial": "9",
+      "name": "死尸",
+      "race": "死灵种",
+      "maxStar": 3,
+      "hpByStar": [
+        1,
+        2,
+        4
+      ],
+      "apByStar": [
+        1,
+        2,
+        3
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front",
+          "front_left",
+          "front_right"
+        ],
+        "damageByStar": [
+          6,
+          10,
+          11
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "corpse_active_burst",
+          "name": "一效果",
+          "kind": "active",
+          "mandatory": false,
+          "limit": "once_per_small_round",
+          "effect": "active_damage_then_self_destroy",
+          "params": {
+            "targets": [
+              "front",
+              "front_left",
+              "front_right"
+            ],
+            "damageByStar": [
+              6,
+              10,
+              11
+            ],
+            "true": false
+          },
+          "text": "主动技：选择攻击范围内一名敌人造成6/10/11伤害，然后自身破坏。"
+        },
+        {
+          "id": "corpse_3star_ignore_defense",
+          "name": "三星效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "condition": {
+            "selfStar": 3
+          },
+          "effect": "ignore_defense_except_inherent",
+          "params": {},
+          "text": "三星时：自身攻击伤害无视除固有技能以外的减伤效果。"
+        }
+      ]
+    },
+    {
+      "id": "base_10_longtail",
+      "category": "base",
+      "serial": "10",
+      "name": "长尾鸟",
+      "race": "兽种",
+      "maxStar": 3,
+      "hpByStar": [
+        6,
+        10,
+        12
+      ],
+      "apByStar": [
+        3,
+        4,
+        6
+      ],
+      "attack": {
+        "mode": "hp_percent",
+        "targets": [
+          "mid",
+          "front"
+        ],
+        "percent": 50,
+        "hitAll": true,
+        "true": false
+      },
+      "abilities": []
+    },
+    {
+      "id": "base_a_spirit",
+      "category": "base",
+      "serial": "a",
+      "name": "精灵",
+      "race": "妖精种",
+      "maxStar": 3,
+      "hpByStar": [
+        2,
+        4,
+        6
+      ],
+      "apByStar": [
+        2,
+        4,
+        5
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "any"
+        ],
+        "damageByStar": [
+          2,
+          4,
+          6
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "spirit_kill_gain_lp",
+          "name": "一效果",
+          "kind": "triggered",
+          "mandatory": true,
+          "trigger": "on_kill",
+          "effect": "on_kill_gain_lp",
+          "params": {
+            "lp": 1
+          },
+          "text": "自身每击败一名敌人，立刻lp+1（必发）。"
+        }
+      ]
+    }
+  ],
+  "fusionCards": [
+    {
+      "id": "fusion_01_underworld_golem",
+      "category": "fusion",
+      "name": "天底魔像",
+      "race": "幻想种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 4,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_0_angel",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_4_apostle",
+            "count": 2
+          }
+        ]
+      },
+      "hpByStar": [
+        15,
+        20
+      ],
+      "apByStar": [
+        6,
+        8
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front",
+          "front_left",
+          "front_right"
+        ],
+        "damageByStar": [
+          6,
+          8
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "golem_active_aoe",
+          "name": "一效果",
+          "kind": "active",
+          "mandatory": false,
+          "limit": "once_per_small_round",
+          "effect": "active_self_hp_cost_aoe",
+          "params": {
+            "selfHpCost": 2,
+            "damageByStar": [
+              4,
+              5
+            ],
+            "targets": [
+              "all"
+            ],
+            "true": false
+          },
+          "text": "主动技：自身HP-2，对全体敌人造成4/5伤害，一小轮一次。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_02_dawn_bird",
+      "category": "fusion",
+      "name": "启明鸟",
+      "race": "兽种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 4,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_1_bird",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_7_giant_bird",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_10_longtail",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        18,
+        24
+      ],
+      "apByStar": [
+        5,
+        8
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front",
+          "front_left",
+          "front_right"
+        ],
+        "damageByStar": [
+          6,
+          8
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "dawnbird_low_hp_aoe",
+          "name": "一效果",
+          "kind": "triggered",
+          "mandatory": true,
+          "trigger": "after_own_attack_action",
+          "condition": {
+            "selfHpBelowPercent": 50
+          },
+          "effect": "low_hp_attack_aoe_true",
+          "params": {
+            "damageByStar": [
+              6,
+              9
+            ],
+            "targets": [
+              "all"
+            ]
+          },
+          "text": "血量低于50%时，每自己攻击的小轮结束后对全体敌人造成6/9真伤（必发）。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_03_king",
+      "category": "fusion",
+      "name": "国王",
+      "race": "幻想种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 4,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_3_banner",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_2_soldier",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_6_knight",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        15,
+        20
+      ],
+      "apByStar": [
+        6,
+        10
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front",
+          "mid"
+        ],
+        "damageByStar": [
+          4,
+          6
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "king_damage_reduction",
+          "name": "一效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "king_damage_reduction_aura",
+          "params": {
+            "adjacentReductionByStar": [
+              {
+                "type": "flat",
+                "value": 4
+              },
+              {
+                "type": "percent",
+                "value": 50
+              }
+            ],
+            "selfReductionByStar": [
+              {
+                "type": "flat",
+                "value": 3
+              },
+              {
+                "type": "flat",
+                "value": 5
+              }
+            ],
+            "immuneOtherReduction": true
+          },
+          "text": "给左右相邻友军减伤4/50%，自身减伤3/5；这张卡不受其他减伤效果影响。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_04_dragon",
+      "category": "fusion",
+      "name": "飞龙",
+      "race": "龙种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 4,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_8_fishman",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_a_spirit",
+            "count": 2
+          }
+        ]
+      },
+      "hpByStar": [
+        15,
+        20
+      ],
+      "apByStar": [
+        6,
+        8
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "any"
+        ],
+        "damageByStar": [
+          8,
+          12
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "dragon_kill_heal_team",
+          "name": "一效果",
+          "kind": "triggered",
+          "mandatory": true,
+          "trigger": "on_kill",
+          "effect": "on_kill_heal_team",
+          "params": {
+            "healByStar": [
+              3,
+              5
+            ],
+            "targets": [
+              "self",
+              "all_allies"
+            ]
+          },
+          "text": "自己每击败一名敌人，自己和全体友军HP回复3/5（必发）。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_05_corpse_pile",
+      "category": "fusion",
+      "name": "堆尸",
+      "race": "死灵种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 4,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_9_corpse",
+            "count": 3
+          }
+        ]
+      },
+      "hpByStar": [
+        14,
+        18
+      ],
+      "apByStar": [
+        5,
+        8
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "mid",
+          "left1",
+          "right1"
+        ],
+        "damageByStar": [
+          8,
+          10
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "pile_stack_attack",
+          "name": "一效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "stack_attack_on_defeat",
+          "params": {
+            "attackPerDefeatByStar": [
+              2,
+              3
+            ],
+            "cap": 20
+          },
+          "text": "每有一名从者被击败，自身攻击上升2/3，上限20（必发）。"
+        },
+        {
+          "id": "pile_2star_heal",
+          "name": "二星效果",
+          "kind": "triggered",
+          "mandatory": true,
+          "condition": {
+            "selfStar": 2
+          },
+          "trigger": "on_enemy_destroyed",
+          "effect": "on_enemy_destroyed_heal",
+          "params": {
+            "heal": 2
+          },
+          "text": "二星时：每有一名敌人被破坏，自身HP回复2（必发）。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_06_holy_dragon",
+      "category": "highFusion",
+      "name": "圣龙",
+      "race": "龙种",
+      "maxStar": 1,
+      "recipe": {
+        "lpCost": 6,
+        "materials": [
+          {
+            "kind": "fusion",
+            "id": "fusion_01_underworld_golem",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_03_king",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_04_dragon",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        35
+      ],
+      "apByStar": [
+        14
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "any"
+        ],
+        "damageByStar": [
+          15
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "holydragon_round_heal",
+          "name": "一效果",
+          "kind": "triggered",
+          "mandatory": true,
+          "trigger": "own_small_round_start",
+          "effect": "own_round_heal_adjacent",
+          "params": {
+            "heal": 2,
+            "targets": [
+              "self",
+              "adjacent_allies"
+            ]
+          },
+          "text": "每一个己方的小轮，回复自己和左右己方从者2HP（必发）。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_07_corroded_dragon",
+      "category": "highFusion",
+      "name": "腐化龙",
+      "race": "龙种",
+      "maxStar": 1,
+      "recipe": {
+        "lpCost": 6,
+        "materials": [
+          {
+            "kind": "fusion",
+            "id": "fusion_04_dragon",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_02_dawn_bird",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_05_corpse_pile",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        30
+      ],
+      "apByStar": [
+        13
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "any"
+        ],
+        "damageByStar": [
+          13
+        ],
+        "trueDamageByStar": [
+          2
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "corroded_reflect",
+          "name": "一效果",
+          "kind": "triggered",
+          "mandatory": true,
+          "trigger": "on_take_damage_from_enemy",
+          "effect": "reflect_true_damage",
+          "params": {
+            "damage": 4
+          },
+          "text": "受到对方伤害时，对伤害来源反伤4真伤（必发，反伤不能被反伤）。"
+        },
+        {
+          "id": "corroded_stack_damage",
+          "name": "二效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "stack_damage_on_kill",
+          "params": {
+            "damagePerKill": 2
+          },
+          "text": "自己每破坏一名敌人，伤害+2（必发）。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_08_bug_queen",
+      "category": "fusion",
+      "name": "虫母",
+      "race": "巨虫种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 3,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_8_fishman",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_5_plague",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_a_spirit",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        15,
+        20
+      ],
+      "apByStar": [
+        5,
+        8
+      ],
+      "attack": {
+        "mode": "aoe",
+        "targets": [
+          "all"
+        ],
+        "damageByStar": [
+          2,
+          3
+        ],
+        "true": true
+      },
+      "abilities": [
+        {
+          "id": "bugqueen_swap_hp",
+          "name": "一效果",
+          "kind": "active",
+          "mandatory": false,
+          "limit": "once_per_small_round",
+          "effect": "active_swap_hp_with_ally",
+          "params": {},
+          "text": "主动技：可以和一名友军互换血量。"
+        },
+        {
+          "id": "bugqueen_cannot_heal",
+          "name": "一效果附加",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "cannot_heal_self",
+          "params": {},
+          "text": "虫母自身不可回复HP。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_09_bishop_pawn",
+      "category": "fusion",
+      "name": "主教棋",
+      "race": "幻想种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 4,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_3_banner",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_2_soldier",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_10_longtail",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        15,
+        20
+      ],
+      "apByStar": [
+        5,
+        8
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front",
+          "mid"
+        ],
+        "damageByStar": [
+          4,
+          6
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "bishop_extra_attack",
+          "name": "一效果",
+          "kind": "active",
+          "mandatory": false,
+          "limit": "once_per_small_round",
+          "effect": "active_grant_extra_attack",
+          "params": {
+            "percent": 50
+          },
+          "text": "主动技（一小轮一次）：可以让一名友军从者再以50%的伤害攻击一次。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_10_hanging_tower",
+      "category": "fusion",
+      "name": "倒吊塔",
+      "race": "机械种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 5,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_3_banner",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_6_knight",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_1_bird",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        15,
+        20
+      ],
+      "apByStar": [
+        5,
+        8
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front",
+          "front_left",
+          "front_right"
+        ],
+        "damageByStar": [
+          15,
+          20
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "tower_attack_again",
+          "name": "一效果",
+          "kind": "triggered",
+          "mandatory": true,
+          "trigger": "on_kill_by_attack",
+          "effect": "attack_again_on_kill",
+          "params": {
+            "percent": 50
+          },
+          "text": "如果自身攻击使敌人被破坏，可以以50%的伤害再攻击一次（必发）。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_11_astrologer",
+      "category": "fusion",
+      "name": "占星魔术师",
+      "race": "人类种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 4,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_5_plague",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_a_spirit",
+            "count": 2
+          }
+        ]
+      },
+      "hpByStar": [
+        15,
+        20
+      ],
+      "apByStar": [
+        5,
+        8
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "any"
+        ],
+        "damageByStar": [
+          5,
+          7
+        ],
+        "true": true
+      },
+      "abilities": [
+        {
+          "id": "astrologer_immune_taunt",
+          "name": "一效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "immune_taunt",
+          "params": {},
+          "text": "不受嘲讽效果影响（必发）。"
+        },
+        {
+          "id": "astrologer_prevent_destruction",
+          "name": "2星效果",
+          "kind": "triggered",
+          "mandatory": false,
+          "condition": {
+            "selfStar": 2
+          },
+          "trigger": "on_would_be_destroyed",
+          "limit": "once_per_battle",
+          "effect": "prevent_destruction_once",
+          "params": {
+            "minHp": 7
+          },
+          "text": "二星时：如果自身被破坏时血量大于等于7，可无效这一次破坏，一回合一次。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_12_spiral_annihilation",
+      "category": "highFusion",
+      "name": "螺旋终灭",
+      "race": "机械种",
+      "maxStar": 1,
+      "recipe": {
+        "lpCost": 5,
+        "materials": [
+          {
+            "kind": "fusion",
+            "id": "fusion_10_hanging_tower",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_02_dawn_bird",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_09_bishop_pawn",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        30
+      ],
+      "defenseByStar": [
+        5
+      ],
+      "apByStar": [
+        12
+      ],
+      "attack": {
+        "mode": "sequential",
+        "damageByStar": [
+          10
+        ],
+        "trueDamageByStar": [
+          8
+        ],
+        "true": false,
+        "directionChoice": [
+          "left_to_right",
+          "right_to_left"
+        ],
+        "positionsPerAttack": 1,
+        "note": "从所选一端开始顺序循环，略过空格，每次攻击一个敌人。",
+        "skipEmpty": true
+      },
+      "abilities": [
+        {
+          "id": "spiral_conditional_bonus",
+          "name": "一效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "conditional_damage_bonus",
+          "params": {
+            "condition": {
+              "ownFieldHasNoNonMechanical": true
+            },
+            "bonus": 2
+          },
+          "text": "当自己场上无机械种以外的卡时，伤害+2（必发）。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_13_mech_dragon",
+      "category": "highFusion",
+      "name": "智械龙",
+      "race": "机械种",
+      "maxStar": 1,
+      "recipe": {
+        "lpCost": 6,
+        "materials": [
+          {
+            "kind": "fusion",
+            "id": "fusion_10_hanging_tower",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_09_bishop_pawn",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_04_dragon",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        25
+      ],
+      "apByStar": [
+        12
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "any"
+        ],
+        "damageByStar": [
+          12
+        ],
+        "true": true
+      },
+      "abilities": [
+        {
+          "id": "mechdragon_field_bonus",
+          "name": "一效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "conditional_damage_bonus",
+          "params": {
+            "perMechanicalFusion": 4,
+            "perHighFusion": 6,
+            "perMechanicalBase": 2
+          },
+          "text": "自己场上每存在一只机械种融合卡+4真伤，每存在一只高级融合卡+6真伤，每存在一只机械种普通卡+2真伤（必发）。"
+        },
+        {
+          "id": "mechdragon_pure_bonus",
+          "name": "二效果",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "conditional_damage_bonus",
+          "params": {
+            "condition": {
+              "ownFieldHasNoNonMechanical": true
+            },
+            "bonus": 2
+          },
+          "text": "当自己场上无机械种以外的卡时，加2点真伤（必发）。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_14_star_caller",
+      "category": "fusion",
+      "name": "唤星魔术师",
+      "race": "人类种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 4,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_5_plague",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_10_longtail",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_0_angel",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        15,
+        20
+      ],
+      "apByStar": [
+        6,
+        8
+      ],
+      "attack": {
+        "mode": "aoe",
+        "targets": [
+          "all"
+        ],
+        "damageByStar": [
+          2,
+          2
+        ],
+        "true": true
+      },
+      "abilities": [
+        {
+          "id": "starcaller_battle_start_defense",
+          "name": "一效果",
+          "kind": "battle_start",
+          "mandatory": false,
+          "effect": "battle_start_grant_defense",
+          "params": {
+            "defenseByStar": [
+              3,
+              4
+            ],
+            "choose": "ally"
+          },
+          "text": "战斗阶段开始时，可以选择一名己方单位获得3/4点防御（按速度顺序结算，不占小轮）。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_15_arcane_mage",
+      "category": "fusion",
+      "name": "奥术魔术师",
+      "race": "人类种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 4,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_5_plague",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_7_giant_bird",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_0_angel",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        18,
+        23
+      ],
+      "apByStar": [
+        5,
+        8
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front",
+          "front_left",
+          "front_right"
+        ],
+        "damageByStar": [
+          8,
+          9
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "arcane_swap_position",
+          "name": "一效果",
+          "kind": "active",
+          "mandatory": false,
+          "limit": "once_per_small_round",
+          "effect": "active_swap_position",
+          "params": {},
+          "text": "主动技（一小轮一次）：可以和一名友方单位换位。"
+        },
+        {
+          "id": "arcane_swap_two_allies",
+          "name": "2星效果",
+          "kind": "special",
+          "mandatory": false,
+          "condition": {
+            "selfStar": 2
+          },
+          "limit": "once_per_battle",
+          "free": true,
+          "effect": "swap_two_allies_once",
+          "params": {},
+          "text": "二星时：一回合一次（每场战斗一次），可以让一名己方单位与另一名己方单位换位，不占用小轮。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_16_rotten_dragon",
+      "category": "highFusion",
+      "name": "朽亡龙",
+      "race": "死灵种",
+      "maxStar": 1,
+      "recipe": {
+        "lpCost": 6,
+        "materials": [
+          {
+            "kind": "fusion",
+            "id": "fusion_05_corpse_pile",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_08_bug_queen",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_04_dragon",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        20
+      ],
+      "apByStar": [
+        12
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "any"
+        ],
+        "damageByStar": [
+          12
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "rotten_stack_hp",
+          "name": "一效果",
+          "kind": "triggered",
+          "mandatory": true,
+          "trigger": "on_enemy_destroyed",
+          "effect": "death_transform_hp_stack",
+          "params": {
+            "hpPerEnemyDestroyed": 1.5
+          },
+          "text": "场上每有一名敌人被破坏，其死亡后变成的二星堆尸HP上限+1.5（必发）。"
+        },
+        {
+          "id": "rotten_death_transform",
+          "name": "特殊",
+          "kind": "triggered",
+          "mandatory": true,
+          "trigger": "on_destroyed",
+          "effect": "death_transform_pile",
+          "params": {
+            "transformTo": "fusion_05_corpse_pile",
+            "transformStar": 2,
+            "baseHp": 18,
+            "hpPerStack": 1.5
+          },
+          "text": "死亡后变成2星堆尸（同一站位，HP=18+1.5×层数）。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_17_corpse",
+      "category": "fusion",
+      "name": "亡骸",
+      "race": "死灵种",
+      "maxStar": 2,
+      "recipe": {
+        "lpCost": 4,
+        "materials": [
+          {
+            "kind": "base",
+            "id": "base_4_apostle",
+            "count": 1
+          },
+          {
+            "kind": "base",
+            "id": "base_9_corpse",
+            "count": 2
+          }
+        ]
+      },
+      "hpByStar": [
+        8,
+        10
+      ],
+      "apByStar": [
+        6,
+        10
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "front"
+        ],
+        "damageByStar": [
+          8,
+          10
+        ],
+        "true": false
+      },
+      "abilities": [
+        {
+          "id": "corpse_death_burst",
+          "name": "一效果",
+          "kind": "triggered",
+          "mandatory": true,
+          "trigger": "on_destroyed",
+          "effect": "death_burst_damage",
+          "params": {
+            "targets": [
+              "front",
+              "front_left",
+              "front_right"
+            ],
+            "damage": 8,
+            "trueDamage": 5,
+            "ignoreDamageBoost": true,
+            "selectOneFlank": true
+          },
+          "text": "被破坏后，命中前方及选定的一个侧格，各造成8普通+5真伤，不受增伤。"
+        }
+      ]
+    },
+    {
+      "id": "fusion_18_bone_dragon",
+      "category": "highFusion",
+      "name": "骸骨龙",
+      "race": "死灵种",
+      "maxStar": 1,
+      "recipe": {
+        "lpCost": 6,
+        "materials": [
+          {
+            "kind": "fusion",
+            "id": "fusion_17_corpse",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_02_dawn_bird",
+            "count": 1
+          },
+          {
+            "kind": "fusion",
+            "id": "fusion_04_dragon",
+            "count": 1
+          }
+        ]
+      },
+      "hpByStar": [
+        16
+      ],
+      "apByStar": [
+        11
+      ],
+      "attack": {
+        "mode": "select",
+        "targets": [
+          "any"
+        ],
+        "damageByStar": [
+          5
+        ],
+        "true": true
+      },
+      "abilities": [
+        {
+          "id": "bonedragon_suicide_true_damage",
+          "name": "特殊",
+          "kind": "active",
+          "mandatory": false,
+          "limit": "once_per_small_round",
+          "effect": "active_true_damage_self_destroy",
+          "params": {
+            "trueDamage": 40,
+            "trueDamageWhenHpBelowPercent": {
+              "percent": 50,
+              "trueDamage": 20
+            },
+            "usableInOwnSmallRound": true
+          },
+          "text": "主动技：选择一名敌人造成40真伤，之后自身破坏；自身HP小于等于50%时改为20真伤。"
+        }
+      ]
+    }
+  ],
+  "inherentSkills": [
+    {
+      "id": "skill_blood_star",
+      "name": "血红星",
+      "costLp": 3,
+      "requires": null,
+      "effect": "sum_seven_to_lp",
+      "params": {},
+      "text": "序号相加为七，也可以变成lp（与凑十并存）。"
+    },
+    {
+      "id": "skill_king_authority",
+      "name": "王权",
+      "costLp": 3,
+      "requires": null,
+      "effect": "transform_greater_than_8_to_any",
+      "params": {
+        "threshold": 8
+      },
+      "text": "序号大于8的手牌可以变为任意数字（0-10，不含a）。变号后的牌仅参与补组合和凑数。"
+    },
+    {
+      "id": "skill_fate",
+      "name": "命运",
+      "costLp": 3,
+      "requires": null,
+      "effect": "swap_serial_pairs",
+      "params": {
+        "pairs": [
+          [
+            "4",
+            "6"
+          ],
+          [
+            "3",
+            "7"
+          ],
+          [
+            "0",
+            "10"
+          ],
+          [
+            "8",
+            "2"
+          ],
+          [
+            "1",
+            "9"
+          ],
+          [
+            "5",
+            "a"
+          ]
+        ]
+      },
+      "text": "四可以和六互换，三可以和七互换，零可以和十互换，八可以和二互换，一可以和九互换，五可以和a互换。变号后的牌仅参与补组合和凑数。"
+    },
+    {
+      "id": "skill_love",
+      "name": "爱",
+      "costLp": 3,
+      "requires": null,
+      "effect": "add_1_or_2_to_hand_card",
+      "params": {
+        "limit": "once_per_prep"
+      },
+      "text": "可以让一张手牌的序号加一或者加二，每一次准备阶段只可以使用一次。变号后的牌仅参与补组合和凑数。"
+    },
+    {
+      "id": "skill_ever_win",
+      "name": "常胜",
+      "costLp": 3,
+      "requires": null,
+      "effect": "lp_on_battle_win",
+      "params": {
+        "lp": 1
+      },
+      "text": "每场战斗胜出，lp+1。"
+    },
+    {
+      "id": "skill_ever_win_2",
+      "name": "常胜二级",
+      "costLp": 3,
+      "requires": "skill_ever_win",
+      "upgradeOf": "skill_ever_win",
+      "effect": "lp_on_battle_win",
+      "params": {
+        "lp": 2
+      },
+      "text": "每场战斗胜出，lp+2（替换常胜）。"
+    },
+    {
+      "id": "skill_sanctuary",
+      "name": "圣域",
+      "costLp": 4,
+      "requires": null,
+      "effect": "middle_slot_defense_bonus",
+      "params": {
+        "thresholds": [
+          {
+            "damageMin": 5,
+            "damageMax": 10,
+            "defenseBonus": 3
+          },
+          {
+            "damageMin": 11,
+            "damageMax": null,
+            "defenseBonus": 5
+          }
+        ]
+      },
+      "text": "中间站位受到的伤害为5-10时防御+3；大于10时防御+5。"
+    },
+    {
+      "id": "skill_reverse_flag",
+      "name": "反旗",
+      "costLp": 4,
+      "requires": null,
+      "effect": "middle_slot_taunt_and_no_death_protection",
+      "params": {},
+      "text": "中间站位拥有嘲讽效果；该单位失去死亡保护。"
+    },
+    {
+      "id": "skill_army",
+      "name": "军队",
+      "costLp": 3,
+      "requires": null,
+      "effect": "draw_bonus",
+      "params": {
+        "bonus": 1
+      },
+      "text": "手牌数量加一。"
+    },
+    {
+      "id": "skill_army_2",
+      "name": "二级军队",
+      "costLp": 3,
+      "requires": "skill_army",
+      "effect": "draw_bonus",
+      "params": {
+        "bonus": 2
+      },
+      "text": "手牌数量加二（叠加军队）。"
+    },
+    {
+      "id": "skill_bishop",
+      "name": "主教",
+      "costLp": 3,
+      "requires": null,
+      "effect": "win_draw_bonus_next_prep",
+      "params": {
+        "bonus": 1
+      },
+      "text": "本回合胜出，下回合准备阶段手牌数量加一。"
+    },
+    {
+      "id": "skill_bishop_2",
+      "name": "二级主教",
+      "costLp": 3,
+      "requires": "skill_bishop",
+      "effect": "win_draw_bonus_next_prep",
+      "params": {
+        "bonus": 2
+      },
+      "text": "本回合胜出，下回合准备阶段手牌数量加二（叠加主教）。"
+    },
+    {
+      "id": "skill_adventure",
+      "name": "奇遇",
+      "costLp": 3,
+      "requires": null,
+      "effect": "reset_hand_once_per_prep",
+      "params": {},
+      "text": "每回合可以重置任意手牌一次。"
+    },
+    {
+      "id": "skill_broken_gold",
+      "name": "断金",
+      "costLp": 4,
+      "requires": null,
+      "effect": "lp_income_per_5_lp",
+      "params": {
+        "divisor": 5,
+        "lpPerUnit": 1,
+        "capLp": 5
+      },
+      "text": "准备阶段开始时每有5lp获得1lp，最多获得5lp。"
+    },
+    {
+      "id": "skill_alchemy",
+      "name": "炼金",
+      "costLp": 3,
+      "requires": null,
+      "effect": "convert_2star_fusion_to_two_1star",
+      "params": {
+        "costLp": 1
+      },
+      "text": "lp-1，将一只二星融合卡变为两张一星融合卡。"
+    },
+    {
+      "id": "skill_refine",
+      "name": "炼心",
+      "costLp": 3,
+      "requires": null,
+      "effect": "decompose_fusion_to_materials",
+      "params": {
+        "costLp": 1
+      },
+      "text": "lp-1，将一只融合卡或高级融合卡分解成其素材。"
+    }
+  ]
+}
