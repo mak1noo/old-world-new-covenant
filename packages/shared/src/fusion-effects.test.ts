@@ -182,16 +182,19 @@ test('螺旋终灭双格各为 2 普通和 8 真伤，下次从第二目标的�
     expect(nextSpiral.acted).toBe(true);
   }
 });
-test('螺旋双格跳空，不重复命中，并绕过鱼人免疫和圣域', () => {
+test('螺旋双格跳空、不重复命中，鱼人的庇护挡住盟友伤害', () => {
   const game = stage();
   const spiral = put(game, 0, 2, '螺旋终灭');
-  const middle = put(game, 1, 2, '圣龙');
+  const middle = put(game, 1, 2, '9');
   const fish = put(game, 1, 0, '8');
+  fish.hp = 1;
   middle.hp = 1;
   game.players[1].skills.push('skill_sanctuary');
   const hit = skill(game, spiral);
+  expect(hit.players[1].field[2]?.hp).toBe(1);
   expect(hit.log.filter(entry => entry.kind === 'damage').map(entry => [entry.unit, entry.amount]))
-    .toEqual([[middle.id, 10], [fish.id, 10]]);
+    .toEqual([[fish.id, 10]]);
+  expect(hit.players[1].field[0]).toBeNull();
   game.players[1].field[0] = null;
   expect(skill(game, spiral).log.filter(entry => entry.kind === 'damage').map(entry => entry.unit)).toEqual([middle.id]);
 });
