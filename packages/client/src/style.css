@@ -148,6 +148,7 @@ body:has(.menu) { min-width: 0; }
 }
 .player-bar { display: flex; align-items: center; gap: 10px; min-height: 34px; }
 .player-bar strong { font-size: 14px; }
+.player-name { min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .avatar { background: #273e55; color: #b1c8df; display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid #526a83; border-radius: 50%; }
 .enemy-avatar { background: #432e32; color: #d9a29c; border-color: #765859; }
 button.life { background: #2b242b; border-color: #664650; color: #f6b2a7; font-variant-numeric: tabular-nums; padding: 2px 8px; min-height: 26px; }

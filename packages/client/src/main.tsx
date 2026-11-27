@@ -128,6 +128,15 @@ function App() {
     document.documentElement.dataset.motion = motion ? 'on' : 'off';
   }, [motion]);
 
+  function refreshConnection() {
+    const current = socket.current;
+    generation.current++;
+    socket.current = undefined;
+    current?.close();
+    setConnected(false);
+    open();
+  }
+
   function send(message: ClientMessage) {
     if (socket.current?.readyState === WebSocket.OPEN && !recovering.current) socket.current.send(JSON.stringify(message));
     else if (message.type === 'create' || message.type === 'join' || message.type === 'solo') {
@@ -187,7 +196,7 @@ function App() {
       openRules={() => setPanel('rules')} openGuide={() => setPanel('guide')} openSettings={() => setPanel('settings')} />
       : <main className="menu">
         <div className="menu-scene">
-          <Account />
+          <Account onSessionChange={refreshConnection} />
           <img className="menu-art" src="/art/main-menu.png" width={1585} height={992} alt="" />
           <h1 className="menu-title">
             <span className="menu-title-text">旧界新约 <span lang="en">New Covenant</span></span>

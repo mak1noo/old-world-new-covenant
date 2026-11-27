@@ -1,5 +1,5 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import type { Server } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { constants } from '../../shared/src/cards';
 import { applyIntent, createGame, forecastCombat, type Game, type Intent, type Side } from '../../shared/src/game';
@@ -15,7 +15,7 @@ type Room = {
   game?: Game; snapshot?: PublicBoard; timer?: ReturnType<typeof setTimeout>;
 };
 type Member = {
-  room: Room; side: Side | null; token?: string; socket: WebSocket | null;
+  room: Room; side: Side | null; name: string | null; token?: string; socket: WebSocket | null;
   expiry?: ReturnType<typeof setTimeout>;
 };
 const spectatorLimit = 16;
@@ -58,6 +58,7 @@ function send(socket: WebSocket | null, message: ServerMessage): void {
 
 export function attachRooms(server: Server, options: {
   seed?: () => number; aiDelay?: number; reconnectMs?: number;
+  accountName?: (request: IncomingMessage) => string | null;
 } = {}): WebSocketServer {
   const wss = new WebSocketServer({
     server, path: '/ws', maxPayload: 8_192,
@@ -136,6 +137,7 @@ export function attachRooms(server: Server, options: {
       return;
     }
     const view = side === null ? spectatorView(room.game, room.observedLog) : viewFor(room.game, side, room.snapshot!);
+    view.playerNames = [room.seats[0]?.name ?? null, room.seats[1]?.name ?? null];
     send(socket, { type: 'state', view, legal: side === null ? [] : battleIntents(room.game, side) });
   }
   function publish(room: Room): void {
@@ -178,9 +180,9 @@ export function attachRooms(server: Server, options: {
     publish(room);
     scheduleAi(room);
   }
-  function admit(socket: WebSocket, room: Room, side: Side | null): Member {
+  function admit(socket: WebSocket, room: Room, side: Side | null, name: string | null): Member {
     leave(socket);
-    const member: Member = { room, side, socket };
+    const member: Member = { room, side, name, socket };
     if (side === null) room.spectators.add(member);
     else room.seats[side] = member;
     occupied.set(socket, member);
@@ -191,12 +193,12 @@ export function attachRooms(server: Server, options: {
     }
     return member;
   }
-  function create(socket: WebSocket, playerHpLimit = constants.playerHp, ai?: Difficulty): void {
+  function create(socket: WebSocket, name: string | null, playerHpLimit = constants.playerHp, ai?: Difficulty): void {
     if (!positive(playerHpLimit)) throw new Error('初始生命必须为正整数');
     let code: string;
     do { code = String(randomInt(100000, 1000000)); } while (rooms.has(code));
     const room: Room = { code, seats: [null, null], spectators: new Set(), playerHpLimit, observedLog: [], ai };
-    const member = admit(socket, room, 0);
+    const member = admit(socket, room, 0, name);
     if (ai) start(room);
     else {
       rooms.set(code, room);
@@ -211,15 +213,16 @@ export function attachRooms(server: Server, options: {
     if (paused(member.room)) throw new Error('等待战斗席玩家重新连接');
     return { room: member.room as Room & { game: Game }, side: member.side };
   }
-  function onMessage(socket: WebSocket, data: RawData): void {
+  function onMessage(socket: WebSocket, request: IncomingMessage, data: RawData): void {
     try {
       const input = JSON.parse(data.toString()) as ClientMessage | null;
       if (!input || typeof input !== 'object') throw new Error('消息无效');
+      const name = options.accountName?.(request) ?? null;
       switch (input.type) {
-        case 'create': create(socket, input.playerHp); return;
+        case 'create': create(socket, name, input.playerHp); return;
         case 'solo':
           if (input.difficulty !== 'easy' && input.difficulty !== 'hard') throw new Error('AI 难度无效');
-          create(socket, input.playerHp, input.difficulty);
+          create(socket, name, input.playerHp, input.difficulty);
           return;
         case 'join': {
           if (typeof input.code !== 'string' || !/^\d{6}$/.test(input.code)) throw new Error('请输入 6 位房间码');
@@ -232,7 +235,7 @@ export function attachRooms(server: Server, options: {
           if (previous?.room === room && previous.side !== null) throw new Error('你已在本房间的战斗席');
           if (side === null && room.spectators.size >= spectatorLimit) throw new Error('观战席已满');
           if (side !== null && (room.game || room.seats[1])) throw new Error('战斗席已满，可选择观战席');
-          const member = admit(socket, room, side);
+          const member = admit(socket, room, side, name);
           publishRoom(room);
           if (side !== null && !paused(room)) start(room);
           else publishState(member);
@@ -249,11 +252,14 @@ export function attachRooms(server: Server, options: {
             occupied.delete(member.socket);
             member.socket.close(1000, 'Session resumed');
           }
+          const nameChanged = member.side !== null && member.name !== name;
           member.socket = socket;
+          member.name = name;
           occupied.set(socket, member);
           const { room } = member;
           publishRoom(room);
           if (!room.game && room.seats.every(Boolean) && !paused(room)) start(room);
+          else if (nameChanged && room.game) publish(room);
           else publishState(member);
           return;
         }
@@ -285,8 +291,8 @@ export function attachRooms(server: Server, options: {
       send(socket, { type: 'error', message: error instanceof Error ? error.message : '操作失败' });
     }
   }
-  wss.on('connection', socket => {
-    socket.on('message', data => onMessage(socket, data));
+  wss.on('connection', (socket, request) => {
+    socket.on('message', data => onMessage(socket, request, data));
     alive.add(socket);
     socket.on('pong', () => alive.add(socket));
     socket.on('close', () => loseConnection(socket));

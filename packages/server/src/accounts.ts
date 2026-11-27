@@ -97,21 +97,33 @@ export function accountRoutes(filename: string) {
     }
   }
 
+  function sessionToken(request: IncomingMessage): string {
+    return request.headers.cookie?.split(';').map(part => part.trim())
+      .find(part => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1) ?? '';
+  }
+
+  function nameForRequest(request: IncomingMessage): string | null {
+    const token = sessionToken(request);
+    const session = sessions.get(token);
+    if (!session) return null;
+    if (session.expires > Date.now()) return session.name;
+    sessions.delete(token);
+    return null;
+  }
+
   function cookie(request: IncomingMessage, response: ServerResponse, value: string, age: number): void {
     const secure = request.headers.origin?.startsWith('https://') ||
       request.headers['x-forwarded-proto']?.toString().split(',')[0].trim() === 'https';
-    response.setHeader('Set-Cookie', `${cookieName}=${value}; Path=/api/account; HttpOnly; SameSite=Strict; Max-Age=${age}${secure ? '; Secure' : ''}`);
+    response.setHeader('Set-Cookie', ['/api/account', '/ws'].map(path =>
+      `${cookieName}=${value}; Path=${path}; HttpOnly; SameSite=Strict; Max-Age=${age}${secure ? '; Secure' : ''}`));
   }
 
-  return async function handleAccount(request: IncomingMessage, response: ServerResponse, path: string): Promise<void> {
+  async function handleAccount(request: IncomingMessage, response: ServerResponse, path: string): Promise<void> {
     try {
-      const token = request.headers.cookie?.split(';').map(part => part.trim())
-        .find(part => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1) ?? '';
+      const token = sessionToken(request);
       const now = Date.now();
-      const current = sessions.get(token);
-      if (current && current.expires <= now) sessions.delete(token);
       if (path === '/api/account' && request.method === 'GET') {
-        respond(response, 200, { name: current && current.expires > now ? current.name : null });
+        respond(response, 200, { name: nameForRequest(request) });
         return;
       }
       if (request.headers['sec-fetch-site'] && request.headers['sec-fetch-site'] !== 'same-origin') {
@@ -148,5 +160,7 @@ export function accountRoutes(filename: string) {
         respond(response, 500, { error: '无法访问账号文件' });
       }
     }
-  };
+  }
+
+  return { handleAccount, nameForRequest };
 }

@@ -3,7 +3,7 @@ import { Modal } from './components';
 
 type AccountReply = { name?: string | null; error?: string };
 
-export function Account() {
+export function Account({ onSessionChange }: { onSessionChange: () => void }) {
   const [open, setOpen] = useState(false);
   const [account, setAccount] = useState<string | null>(null);
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -32,6 +32,7 @@ export function Account() {
       const reply: AccountReply = await response.json();
       if (!response.ok) throw new Error(reply.error ?? '账号操作失败');
       setAccount(reply.name ?? null);
+      onSessionChange();
       setMode('login');
       setPassword('');
       setOpen(false);

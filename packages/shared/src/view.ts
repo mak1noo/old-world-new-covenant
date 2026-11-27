@@ -8,6 +8,7 @@ export type MatchView = {
   own: Omit<Player, 'deck' | 'won'>;
   opponent: PublicPlayer;
   log: Game['log'];
+  playerNames?: [string | null, string | null];
   observedOpponent?: SpectatorInventory;
   observedDecks?: [Player['deck'], Player['deck']];
   pending?: { label: string; side: Side; options: { value: number; label: string }[] };

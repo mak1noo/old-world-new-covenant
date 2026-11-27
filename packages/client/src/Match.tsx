@@ -35,7 +35,9 @@ export function Match({ view: incomingView, legal, change, exit, restart, frame,
   const canSurrender = !spectator && !blocked && !frame && (battle || view.phase === 'prep' && !!view.pending);
   const ownName = spectator ? view.side === 0 ? '一号战斗席' : '二号战斗席' : '我方';
   const opponentName = spectator ? view.side === 0 ? '二号战斗席' : '一号战斗席' : '敌方';
-  const playerName = (side: Side) => side === view.side ? ownName : opponentName;
+  const playerName = (side: Side) => view.playerNames?.[side] ?? (side === view.side ? ownName : opponentName);
+  const ownNickname = playerName(view.side);
+  const opponentNickname = playerName(other(view.side));
   const prep = !spectator && !blocked && view.phase === 'prep' && !view.own.ready && !view.pending && !frame;
   const turn = !spectator && !blocked && battle && view.active === view.side && !view.pending && !frame;
   const slotFrame = battle && frame?.entry.battle === view.battle && frame.entry.round === view.round ? frame : undefined;
@@ -182,7 +184,7 @@ export function Match({ view: incomingView, legal, change, exit, restart, frame,
       <div className="match-play-area">
         <section className="battlefield" aria-label="战场">
           <div className="player-bar">
-            <span className="avatar enemy-avatar" aria-hidden="true">◆</span><strong>{opponentName}</strong>
+            <span className="avatar enemy-avatar" aria-hidden="true">◆</span><strong className="player-name" title={opponentNickname}>{opponentNickname}</strong>
             <button className="life" title="敌方玩家生命明细" onClick={() => playerDetail(other(view.side))}>♥ {view.opponent.hp}/{view.playerHpLimit}</button>
             <span className="stat">速度 <b>{view.opponent.speed}</b></span>
             {observer && <b className="gold" aria-label={`${opponentName} LP`}>{observer.lp} LP</b>}
@@ -212,7 +214,7 @@ export function Match({ view: incomingView, legal, change, exit, restart, frame,
             onEmpty={slot => selected && changeSlot(selected, slot)} onDrop={prep ? changeSlot : undefined}
             onHp={unitDetail} frame={slotFrame} taunt={view.own.skills.includes(taunt)} battle={battle} canDrag={prep} />
           <div className="player-bar">
-            <span className="avatar" aria-hidden="true">◆</span><strong>{ownName}</strong>
+            <span className="avatar" aria-hidden="true">◆</span><strong className="player-name" title={ownNickname}>{ownNickname}</strong>
             <button className="life" title="我方玩家生命明细" onClick={() => playerDetail(view.side)}>♥ {view.own.hp}/{view.playerHpLimit}</button>
             <span className="stat">速度 <b>{ownSpeed}</b></span>
             {observer && <b className="gold" aria-label={`${ownName} LP`}>{view.own.lp} LP</b>}

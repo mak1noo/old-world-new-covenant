@@ -8,7 +8,7 @@ import { accountRoutes } from './accounts';
 import { validateCards } from '../../shared/src/cards';
 
 validateCards();
-const handleAccount = accountRoutes(process.env.COVENANT_ACCOUNTS_FILE ??
+const { handleAccount, nameForRequest } = accountRoutes(process.env.COVENANT_ACCOUNTS_FILE ??
   fileURLToPath(new URL('../../../accounts.json', import.meta.url)));
 const distribution = fileURLToPath(new URL('../../client/dist', import.meta.url));
 const types: Record<string, string> = {
@@ -38,7 +38,7 @@ export const server = createServer(async (request, response) => {
   });
   createReadStream(file).on('error', () => response.destroy()).pipe(response);
 });
-attachRooms(server);
+attachRooms(server, { accountName: nameForRequest });
 server.listen({ port: Number(process.env.PORT ?? 8080), host: process.env.COVENANT_HOST }, () => {
   console.log(`旧界新约 http://localhost:${(server.address() as { port: number }).port}`);
 });
