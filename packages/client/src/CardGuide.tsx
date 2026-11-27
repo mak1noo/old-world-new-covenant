@@ -44,7 +44,7 @@ export function CardDetails({ card, star, unit, visit }: { card: Card; star: num
   const attack = card.attack;
   const names = (targets: string[] = []) => targets.map(target => targetNames[target] ?? target).join('、');
   const range = attack?.mode === 'positional'
-    ? `位于${names(attack.rules?.map(rule => rule.ownPos))}时攻击正前`
+    ? attack.rules?.map(rule => `${names([rule.ownPos])} → 对方${names(rule.targets)}`).join('，')
     : attack?.mode === 'sequential' ? '沿选定方向逐格攻击，跳过空位'
     : names(attack?.targets);
   return <div className="card-details">

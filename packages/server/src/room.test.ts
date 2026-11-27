@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { expect, test } from 'vitest';
 import WebSocket from 'ws';
+import type { Intent } from '../../shared/src/game';
 import type { ClientMessage, ServerMessage } from '../../shared/src/protocol';
 import { attachRooms } from './room';
 
@@ -96,7 +97,7 @@ test('准备状态更新不会暴露对手实际阵容，掉线通知另一客�
   });
 });
 
-test('观战席只收到公开阵容，远程战斗席断线暂停且能恢复', async () => {
+test('观战席实时看双方牌区、LP 和操作，战斗席断线暂停且能恢复', async () => {
   await testNetwork(async connect => {
     const host = await connect();
     const guest = await connect();
@@ -109,11 +110,38 @@ test('观战席只收到公开阵容，远程战斗席断线暂停且能恢复',
     await watcher.take('lobby');
     guest.send({ type: 'join', code, role: 'player' });
     const initial = (await host.take('state')).view;
-    await guest.take('state');
+    const guestInitial = (await guest.take('state')).view;
     const watching = await watcher.take('state');
     expect(watching.legal).toEqual([]);
-    expect(watching.view.own).toMatchObject({ hand: [], shop: [], bench: [], lp: 0 });
-    expect(watching.view.opponent).not.toHaveProperty('hand');
+    expect(watching.view.own).toMatchObject({ hand: initial.own.hand, shop: initial.own.shop, bench: [], lp: 0 });
+    expect(watching.view.observedOpponent).toEqual({ hand: guestInitial.own.hand, shop: guestInitial.own.shop, bench: [], lp: 0 });
+    expect(watching.view.own).not.toHaveProperty('deck');
+    expect(watching.view.observedOpponent).not.toHaveProperty('deck');
+
+    async function perform(player: typeof host, intent: Intent) {
+      player.send({ type: 'intent', intent });
+      const [hostState, guestState, spectatorState] = await Promise.all([host.take('state'), guest.take('state'), watcher.take('state')]);
+      expect(hostState.view.observedOpponent).toBeUndefined();
+      expect(guestState.view.observedOpponent).toBeUndefined();
+      return { hostState, guestState, spectatorState };
+    }
+    const gain = await perform(host, { type: 'sum', ids: [7, 27], total: 10 });
+    expect(gain.spectatorState.view.own.lp).toBe(1);
+    expect(gain.guestState.view.log).toEqual([]);
+    expect(gain.spectatorState.view.log.at(-1)).toMatchObject({ player: 0, text: expect.stringContaining('凑 10') });
+    const bench = await perform(guest, { type: 'sublimate', ids: [57, 71, 55], serial: '6' });
+    const unit = bench.guestState.view.own.bench[0];
+    expect(bench.spectatorState.view.observedOpponent?.bench).toEqual([unit]);
+    expect(bench.hostState.view.opponent.benchCount).toBe(0);
+    expect(bench.spectatorState.view.log.at(-1)).toMatchObject({ player: 1, text: expect.stringContaining('升华') });
+    const income = await perform(guest, { type: 'sum', ids: [44, 62], total: 10 });
+    expect(income.spectatorState.view.observedOpponent?.lp).toBe(1);
+    const field = await perform(guest, { type: 'place', id: unit.id, slot: 2 });
+    expect(field.spectatorState.view.opponent.field[2]).toEqual(unit);
+    expect(field.hostState.view.opponent.field[2]).toBeNull();
+    expect(field.spectatorState.view.observedOpponent?.bench).toEqual([]);
+    expect(field.spectatorState.view.log.at(-1)).toMatchObject({ player: 1, text: '将 骑士棋 1星 放到中位' });
+    const latestHand = field.hostState.view.own.hand;
     watcher.send({ type: 'intent', intent: { type: 'ready' } });
     expect((await watcher.take('error')).message).toContain('观战席');
     watcher.send({ type: 'forecast', requestId: 1, intent: { type: 'attack', id: 101 } });
@@ -126,7 +154,7 @@ test('观战席只收到公开阵容，远程战斗席断线暂停且能恢复',
     expect((await guest.take('error')).message).toContain('重新连接');
     const resumed = await connect();
     resumed.send({ type: 'resume', token });
-    expect((await resumed.take('state')).view.own).toMatchObject({ ready: true, hand: initial.own.hand, shop: initial.own.shop });
+    expect((await resumed.take('state')).view.own).toMatchObject({ ready: true, hand: latestHand, shop: initial.own.shop });
     expect((await guest.take('room')).room.paused).toBe(false);
     resumed.send({ type: 'intent', intent: { type: 'unready' } });
     expect((await guest.take('state')).view.opponent.ready).toBe(false);

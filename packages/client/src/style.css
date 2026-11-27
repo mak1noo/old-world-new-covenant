@@ -191,6 +191,10 @@ button.selected, .unit-card.targeted { outline: 2px solid var(--gold); outline-o
 .bench-cards { display: flex; gap: 6px; overflow-x: auto; }
 .bench-cards .unit-card { min-width: 116px; max-width: 138px; flex: 0 0 116px; }
 .bench > button { margin-top: 5px; }
+.observer-inventory { margin-block: 5px; font-size: 12px; }
+.observer-inventory summary { color: var(--gold); cursor: pointer; width: fit-content; padding: 4px 0; }
+.observer-row { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; min-height: 28px; }
+.observer-row button { padding: 3px 6px; font-size: inherit; }
 .empty-note { margin: 0; color: var(--muted); font-size: 11px; }
 .command-center { display: grid; grid-template-columns: 1.3fr 1fr .8fr; gap: 8px; margin-top: 8px; }
 .command-panel, .combat-controls { background: var(--panel); border: 1px solid #363f50; border-radius: 8px; padding: 8px; min-width: 0; }

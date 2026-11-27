@@ -210,7 +210,7 @@ function App() {
                   join('player');
                 }}><input aria-label="房间码" inputMode="numeric" maxLength={6} value={room} placeholder="六位房间码" onChange={event => setRoom(event.target.value)} />
                   <button type="submit">战斗席</button>
-                  <button type="button" onClick={() => join('spectator')}>观战席</button></form>
+                  <button type="button" title="可查看双方牌区、LP 和操作" onClick={() => join('spectator')}>观战席</button></form>
               </section>
             </div>}
             <div className="menu-links"><button className="quiet" onClick={() => setPanel('rules')} title="查看规则">规则说明</button>

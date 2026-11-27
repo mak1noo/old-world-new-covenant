@@ -1,8 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import { constants, skills } from '../../shared/src/cards';
-import { definition, other, type ForecastIntent, type Intent, type Side, type Unit } from '../../shared/src/game';
+import { cardBySerial, constants, skills } from '../../shared/src/cards';
+import { definition, other, type ForecastIntent, type Intent, type RawCard, type Side, type Unit } from '../../shared/src/game';
 import type { ForecastReply, RoomStatus } from '../../shared/src/protocol';
-import type { MatchView } from '../../shared/src/view';
+import type { MatchView, SpectatorInventory } from '../../shared/src/view';
 import { BenchBacks, BoardRow, HealthDetails, Modal, SkillIcons, hp, hpLimit } from './components';
 import { Bench, Prep } from './Prep';
 import { CardDetails, type CardPreview } from './CardGuide';
@@ -29,6 +29,7 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
   const [confirmation, setConfirmation] = useState<{ requestId: number; intent: ForecastIntent }>();
   const [surrender, setSurrender] = useState<number>();
   const battle = view.phase === 'battle';
+  const observer = view.observedOpponent;
   const canSurrender = !spectator && !blocked && !frame && (battle || view.phase === 'prep' && !!view.pending);
   const ownName = spectator ? '一号战斗席' : '我方';
   const opponentName = spectator ? '二号战斗席' : '敌方';
@@ -106,7 +107,8 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
   };
   const inspectUnit = (unit: Unit) => setPreview({ card: definition(unit), star: unit.star, unitId: unit.id });
   const previewUnit = preview?.unitId === undefined ? undefined :
-    [...view.own.field, ...view.opponent.field].find(unit => unit?.id === preview.unitId) ?? undefined;
+    [...view.own.field, ...view.opponent.field, ...view.own.bench, ...(observer?.bench ?? [])]
+      .find(unit => unit?.id === preview.unitId) ?? undefined;
   function selectUnit(unit: Unit, slot?: number) {
     if (selectTarget(unit)) return;
     if (prep && slot !== undefined && selectedUnit && selectedUnit.id !== unit.id) {
@@ -155,7 +157,7 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
             <option value="all">全部</option>{Array.from({ length: view.battle }, (_, index) => <option key={index} value={index + 1}>{index + 1}</option>)}
           </select></label>
           {visibleLog.length ? <ul className="events">{visibleLog.slice(-historyLimit).reverse().map((entry, index) =>
-            <li key={visibleLog.length - index}><span>第 {entry.battle} 场 · {entry.round} 轮
+            <li key={visibleLog.length - index}><span>第 {entry.battle} 场 · {entry.round ? `第 ${entry.round} 轮` : '准备'}
               {entry.player !== undefined && ` · ${playerName(entry.player)}`}</span><b>{entry.text}</b>
               {entry.amount !== undefined && <strong className={entry.kind === 'heal' ? 'healing' : 'damage'}>
                 {entry.kind === 'heal' ? '+' : '−'}{hp(entry.amount)}
@@ -176,15 +178,19 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
             <span className="avatar enemy-avatar" aria-hidden="true">◆</span><strong>{opponentName}</strong>
             <button className="life" title="敌方玩家生命明细" onClick={() => playerDetail(other(view.side))}>♥ {view.opponent.hp}/{hpLimit}</button>
             <span className="stat">速度 <b>{view.opponent.speed}</b></span>
+            {observer && <b className="gold" aria-label={`${opponentName} LP`}>{observer.lp} LP</b>}
             <SkillIcons ids={view.opponent.skills} />
             <span className="player-turn">{battle ? view.first !== view.side ? '先手' : '后手' : view.opponent.ready ? '已准备' : '准备中'}</span>
           </div>
-          <BenchBacks count={view.opponent.benchCount} />
+          {observer ? <ObservedInventory name={opponentName} inventory={observer} preview={setPreview} /> :
+            <BenchBacks count={view.opponent.benchCount} />}
           <BoardRow enemy field={view.opponent.field} highlighted={targeted} active={new Set()} onUnit={unit => { if (!selectTarget(unit)) inspectUnit(unit); }}
             onHp={unitDetail} frame={slotFrame} taunt={view.opponent.skills.includes(taunt)} battle={battle} canDrag={false} />
           <div className="phase">
             <div key={`${view.phase}-${view.round}`}><span className="gold">◇</span><strong>{view.phase === 'finished' ? '对局结束' : view.pending && !battle ? '战斗开始' : battle ? '战斗阶段' : '准备阶段'}</strong>
               <span>{frame ? '行动演示' : battle ? `第 ${view.round} 战斗轮次 · ${spectator ? `${playerName(view.active)}行动` : turn ? '我方行动' : '等待对方'}` : spectator ? '等待双方准备' : prep ? '构筑与布阵' : '等待结算'}</span></div>
+            {observer && view.pending && <small>{playerName(view.pending.side)} · {view.pending.label}
+              {view.pending.options.length > 0 && ` · ${view.pending.options.map(option => option.label).join(' / ')}`}</small>}
             {currentAction && <button className="quiet" title="取消目标选择" onClick={clearSelection}>取消 · {currentAction}</button>}
             {!battle && !frame && lastResult && <small>{lastResult.text === '本场战斗平局' ? `第 ${lastResult.battle} 场平局` :
               `第 ${lastResult.battle} 场 · ${playerName(lastResult.player!)}失去 ${lastResult.amount} HP`}</small>}
@@ -202,10 +208,11 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
             <span className="avatar" aria-hidden="true">◆</span><strong>{ownName}</strong>
             <button className="life" title="我方玩家生命明细" onClick={() => playerDetail(view.side)}>♥ {view.own.hp}/{hpLimit}</button>
             <span className="stat">速度 <b>{ownSpeed}</b></span>
+            {observer && <b className="gold" aria-label={`${ownName} LP`}>{view.own.lp} LP</b>}
             <SkillIcons ids={view.own.skills} />
             <span className="player-turn">{battle ? view.first === view.side ? '先手' : '后手' : view.own.ready ? '已准备' : '准备中'}</span>
           </div>
-          {spectator ? <BenchBacks count={view.own.benchCount ?? 0} /> :
+          {observer ? <ObservedInventory name={ownName} inventory={view.own} preview={setPreview} /> :
             <Bench view={view} enabled={prep} change={commit} selected={selected} onUnit={selectUnit} />}
         </section>
         {!spectator && view.phase === 'prep' && !frame && <Prep key={view.battle} view={view} change={change} blocked={blocked} onPreview={setPreview} />}
@@ -257,6 +264,38 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
         <button title="返回主菜单" onClick={exit}>返回主菜单</button></div>
     </Modal>}
   </main>;
+}
+
+function ObservedInventory({ name, inventory, preview }: {
+  name: string; inventory: SpectatorInventory; preview: (card: CardPreview) => void;
+}) {
+  const renderRaw = (raw: RawCard) => {
+    const card = cardBySerial.get(raw.serial)!;
+    return <button className="quiet" key={raw.id} onClick={() => preview({ card, star: 1 })}>
+      {raw.printed !== raw.serial ? `${raw.printed} → ${raw.serial}` : raw.serial} {card.name}
+    </button>;
+  };
+  return <section className="bench observer-inventory" aria-label={`${name}牌区`}>
+    <div className="observer-row" aria-label={`${name}升华区`}>
+      <strong>升华区</strong>
+      {inventory.bench.length ? inventory.bench.map(unit => {
+        const card = definition(unit);
+        return <button className="quiet" key={unit.id} onClick={() => preview({ card, star: unit.star, unitId: unit.id })}>
+          {card.name} {unit.star} 星
+        </button>;
+      }) : <span className="muted">空</span>}
+    </div>
+    <details>
+      <summary>手牌 {inventory.hand.length} 张 · 商店 {inventory.shop.filter(Boolean).length} 张</summary>
+      <div className="observer-row" aria-label={`${name}手牌`}>
+        <strong>手牌</strong>{inventory.hand.length ? inventory.hand.map(renderRaw) : <span className="muted">空</span>}
+      </div>
+      <div className="observer-row" aria-label={`${name}商店`}>
+        <strong>商店</strong>{inventory.shop.length ? inventory.shop.map((raw, slot) => raw ? renderRaw(raw) :
+          <span className="muted" key={`slot-${slot}`}>已售</span>) : <span className="muted">空</span>}
+      </div>
+    </details>
+  </section>;
 }
 
 function ceremonyStyle(frame: BattleFrame) {

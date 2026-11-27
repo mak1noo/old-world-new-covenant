@@ -2,11 +2,13 @@ import { other, speed, type Game, type Player, type Side } from './game';
 
 export type PublicPlayer = Pick<Player, 'hp' | 'field' | 'skills' | 'ready'> & { benchCount: number; speed: number };
 export type PublicBoard = [PublicPlayer, PublicPlayer];
+export type SpectatorInventory = Pick<Player, 'lp' | 'hand' | 'shop' | 'bench'>;
 export type MatchView = {
   side: Side; phase: Game['phase']; battle: number; round: number; first: Side; active: Side; winner: Side | null;
-  own: Omit<Player, 'deck' | 'won'> & { benchCount?: number };
+  own: Omit<Player, 'deck' | 'won'>;
   opponent: PublicPlayer;
   log: Game['log'];
+  observedOpponent?: SpectatorInventory;
   pending?: { label: string; side: Side; options: { value: number; label: string }[] };
 };
 export function publicPlayer(player: Player): PublicPlayer {
@@ -30,21 +32,12 @@ export function viewFor(game: Game, side: Side, snapshot: PublicBoard): MatchVie
   };
   return { side, phase, battle, round, first, active, winner, own, opponent, log, pending };
 }
-export function spectatorView(game: Game, snapshot: PublicBoard): MatchView {
-  const opening = game.pending?.originalIntent.type === 'ready';
-  const publicSide = (side: Side): PublicPlayer => ({
-    ...(game.phase === 'prep' && !opening ? snapshot[side] : publicPlayer(game.players[side])),
-    hp: game.players[side].hp,
-    ready: !!opening || game.players[side].ready,
-  });
-  const left = publicSide(0);
-  const { phase, battle, round, first, active, winner, log } = game;
-  const pending = game.pending && { side: game.pending.side, label: '等待战斗席玩家选择', options: [] };
-  return {
-    side: 0, phase, battle, round, first, active, winner, log, pending,
-    own: { ...left, lp: 0, hand: [], shop: [], bench: [], aSlot: null, loveUsed: false, resetUsed: false },
-    opponent: publicSide(1),
-  };
+export function spectatorView(game: Game, log: Game['log']): MatchView {
+  const view = viewFor(game, 0, captureBoard(game));
+  const { lp, hand, shop, bench } = game.players[1];
+  if (game.pending?.originalIntent.type === 'ready') view.own.ready = true;
+  const pending = game.pending && { side: game.pending.side, label: game.pending.label, options: game.pending.options };
+  return { ...view, log, pending, observedOpponent: { lp, hand, shop, bench } };
 }
 export function visibleSimulation(game: Game, side: Side, snapshot: PublicBoard): Game {
   const view = viewFor(game, side, snapshot);

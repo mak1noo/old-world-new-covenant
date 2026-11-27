@@ -6,9 +6,11 @@ import { battleIntents } from '../../shared/src/legal';
 import { reconnectGraceMs, type ClientMessage, type Difficulty, type ServerMessage } from '../../shared/src/protocol';
 import { captureBoard, spectatorView, viewFor, type PublicBoard } from '../../shared/src/view';
 import { aiIntent } from './ai';
+import { observedAction } from './observe';
 
 type Room = {
   code: string; seats: [Member | null, Member | null]; spectators: Set<Member>; ai?: Difficulty;
+  observedLog: Game['log'];
   game?: Game; snapshot?: PublicBoard; timer?: ReturnType<typeof setTimeout>;
 };
 type Member = {
@@ -132,7 +134,7 @@ export function attachRooms(server: Server, options: {
       send(socket, { type: 'lobby', code: room.code });
       return;
     }
-    const view = side === null ? spectatorView(room.game, room.snapshot!) : viewFor(room.game, side, room.snapshot!);
+    const view = side === null ? spectatorView(room.game, room.observedLog) : viewFor(room.game, side, room.snapshot!);
     send(socket, { type: 'state', view, legal: side === null ? [] : battleIntents(room.game, side) });
   }
   function publish(room: Room): void {
@@ -141,6 +143,10 @@ export function attachRooms(server: Server, options: {
   function update(room: Room, side: Side, intent: Intent): void {
     const before = room.game!;
     const next = applyIntent(before, side, intent);
+    if (!room.ai) {
+      const effects = next.log.slice(before.log.length).filter(entry => entry.kind !== 'action');
+      room.observedLog.push(observedAction(before, side, intent), ...effects);
+    }
     room.game = next;
     if (next.phase !== 'prep' || next.battle !== before.battle) room.snapshot = captureBoard(next);
     publish(room);
@@ -187,7 +193,7 @@ export function attachRooms(server: Server, options: {
   function create(socket: WebSocket, ai?: Difficulty): void {
     let code: string;
     do { code = String(randomInt(100000, 1000000)); } while (rooms.has(code));
-    const room: Room = { code, seats: [null, null], spectators: new Set(), ai };
+    const room: Room = { code, seats: [null, null], spectators: new Set(), observedLog: [], ai };
     const member = admit(socket, room, 0);
     if (ai) start(room);
     else {

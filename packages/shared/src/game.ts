@@ -61,6 +61,9 @@ export const definition = (unit: Unit): Card => cardById.get(unit.card)!;
 export const maxHp = (unit: Unit): number => definition(unit).hpByStar[unit.star - 1] + (unit.auraHp ?? 0) + (unit.bonusHp ?? 0);
 const abilityOf = (unit: Unit, effect: string) => definition(unit).abilities.find(ability =>
   ability.effect === effect && !unit.flipped && (ability.condition?.selfStar === undefined || ability.condition.selfStar === unit.star));
+function activeSpirit(player: Player, opening = false): Unit | undefined {
+  return units(player).find(unit => (opening || unit.hp > 0) && abilityOf(unit, 'on_kill_gain_lp'));
+}
 const numberAt = (value: unknown, unit: Unit): number => Array.isArray(value) ? Number(value[unit.star - 1]) : Number(value);
 function adjacent(player: Player, unit: Unit): Unit[] {
   const index = player.field.indexOf(unit);
@@ -499,11 +502,11 @@ export function attackOptions(state: Game, side: Side, unit: Unit): { targets: U
     damage = attack.alternate.damageByStar[unit.star - 1];
     all = attack.alternate.hitAll;
   }
-  let slots = enemySlots(slot, targets);
-  if (attack.mode === 'positional') {
-    const rule = attack.rules?.find(entry => entry.ownPos === positions.order[slot]);
-    slots = rule?.targets.map(target => positions.order.indexOf(target)).filter(index => index >= 0) ?? [];
-  }
+  // Positional rules name the defender's own slots, which the board displays mirrored.
+  const positionalTargets = attack.rules?.find(entry => entry.ownPos === positions.order[slot])?.targets ?? [];
+  let slots = attack.mode === 'positional'
+    ? positionalTargets.map(target => positions.order.indexOf(target)).filter(index => index >= 0)
+    : enemySlots(slot, targets);
   if (attack.mode === 'sequential') {
     const { column, step } = unit.sweep ?? { column: 0, step: 1 };
     const columns = Array.from({ length: constants.fieldSlots }, (_, offset) => wrapSlot(column + offset * step));
@@ -576,8 +579,9 @@ function destroy(state: Game, side: Side, target: Unit, resolution: Resolution, 
     }
   }
   if (source && source !== target) {
-    const reward = abilityOf(source, 'on_kill_gain_lp');
-    if (reward) attacker.lp += Number(reward.params.lp);
+    if (source === activeSpirit(attacker)) {
+      attacker.lp += Number(abilityOf(source, 'on_kill_gain_lp')!.params.lp);
+    }
     if (attacker.field.includes(source) && source.hp > 0) {
       const team = abilityOf(source, 'on_kill_heal_team');
       if (team) for (const ally of units(attacker)) heal(state, other(side), ally, numberAt(team.params.healByStar, source), source);
@@ -855,7 +859,15 @@ export function applyIntent(previous: Game, side: Side, intent: Intent): Game {
       state.round = 1;
     }
     state.log.push({ kind: 'action', text: '投降本场战斗', battle: state.battle, round: state.round, player: side });
-    finishBattle(state, other(side));
+    const winner = other(side);
+    const spirit = activeSpirit(state.players[winner], opening);
+    const remaining = units(state.players[side]).filter(unit => opening || unit.hp > 0).length;
+    if (spirit && remaining > 0) {
+      state.players[winner].lp += remaining;
+      state.log.push({ kind: 'effect', text: `精灵因对手投降获得 ${remaining} LP`,
+        battle: state.battle, round: state.round, player: winner, unit: spirit.id });
+    }
+    finishBattle(state, winner);
     return state;
   }
   const pending = previous.pending;

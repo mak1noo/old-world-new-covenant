@@ -129,12 +129,20 @@ test('鱼人：各星级只在 1 HP 时保护非鱼人友军，效果能破坏�
   game.players[1].field[4]!.hp = 1;
   expect(attack(game, bird, fish).players[1].field[2]).toBeNull();
 });
-test('士兵棋按双方各自的站位名对打，伤害为 4/5/6', () => {
-  const game = stage();
-  for (const [own, enemy, star] of [[0, 4, 1], [2, 2, 2], [4, 0, 3]]) {
-    const soldier = put(game, 0, own, '2', star);
-    const target = put(game, 1, enemy, '6', 3);
-    expect(attackOptions(game, 0, soldier)).toMatchObject({ targets: [target], normal: star + 3 });
+test('士兵棋从双方各自左2、右2、中位只可对打指定站位', () => {
+  for (const side of [0, 1] as const) {
+    const rival = side === 0 ? 1 : 0;
+    for (const [own, enemy, star] of [[0, 4, 1], [2, 2, 2], [4, 0, 3]]) {
+      const game = stage();
+      game.active = side;
+      const soldier = put(game, side, own, '2', star);
+      const targets = Array.from({ length: 5 }, (_, slot) => put(game, rival, slot, '6', 3));
+      expect(attackOptions(game, side, soldier)).toMatchObject({ targets: [targets[enemy]], normal: star + 3 });
+      const intent = { type: 'attack', id: soldier.id, target: targets[(enemy + 1) % 5].id } as const;
+      expect(() => applyIntent(game, side, intent)).toThrow('攻击目标不合法');
+      const after = applyIntent(game, side, { ...intent, target: targets[enemy].id });
+      expect(after.players[rival].field[enemy]?.hp).toBe(targets[enemy].hp - star - 3);
+    }
   }
 });
 test('死尸：主动伤害后自毁，三星无视螺旋的防御', () => {
@@ -164,4 +172,36 @@ test('精灵：击杀立即给 lp，未杀不加', () => {
   expect(attack(game, fairy, target).players[0].lp).toBe(0);
   target.hp = 2;
   expect(attack(game, fairy, target).players[0].lp).toBe(1);
+});
+
+test('多张存活精灵仅最左一张的击杀生效，它退场后另一张接替', () => {
+  const game = stage();
+  const first = put(game, 0, 0, 'a');
+  const second = put(game, 0, 2, 'a');
+  const enemy = put(game, 1, 1, '1');
+  enemy.hp = 2;
+  expect(attack(game, first, enemy).players[0].lp).toBe(1);
+  expect(attack(game, second, enemy).players[0].lp).toBe(0);
+  game.players[0].field[0] = null;
+  game.players[0].bench.push(first);
+  expect(attack(game, second, enemy).players[0].lp).toBe(1);
+});
+test('对手投降时，存活精灵按对手剩余在场从者数只领取一次 LP', () => {
+  const game = stage();
+  const first = put(game, 0, 0, 'a');
+  const second = put(game, 0, 2, 'a');
+  put(game, 0, 4, '2');
+  put(game, 1, 0, '1');
+  put(game, 1, 2, 'a');
+  const fallen = put(game, 1, 4, '3');
+  game.players[1].field[4] = null;
+  game.players[1].bench.push(fallen);
+  const winning = applyIntent(game, 1, { type: 'surrender', battle: 1 });
+  expect(winning.players[0].lp).toBe(2);
+  expect(winning.players[1].lp).toBe(0);
+  expect(winning.log.filter(entry => entry.text.includes('精灵因对手投降')))
+    .toMatchObject([{ unit: first.id, player: 0 }]);
+  game.players[0].field[0] = game.players[0].field[2] = null;
+  game.players[0].bench.push(first, second);
+  expect(applyIntent(game, 1, { type: 'surrender', battle: 1 }).players[0].lp).toBe(0);
 });
