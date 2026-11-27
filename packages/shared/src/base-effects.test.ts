@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { cardBySerial, cards } from './cards';
-import { addUnit, applyIntent, attackOptions, createGame, maxHp, type Game, type Side, type Unit } from './game';
+import { addUnit, applyIntent, attackOptions, createGame, forecastCombat, maxHp, type Game, type Side, type Unit } from './game';
 
 function put(game: Game, side: Side, slot: number, name: string, star = 1): Unit {
   const card = cardBySerial.get(name) ?? cards.find(card => card.name === name)!;
@@ -106,27 +106,39 @@ test('巨鸟：中位双目标，其他位置正对单目标', () => {
   expect(attackOptions(game, 0, giant).targets).toEqual([right]);
   expect(() => attack(game, giant, left)).toThrow('目标不合法');
 });
-test('鱼人：各星级只在 1 HP 时保护非鱼人友军，效果能破坏，退场结束保护', () => {
+test('鱼人在场时，1 HP 死尸在敌人先手时免疫普通攻击和攻击真伤', () => {
+  const game = stage();
+  const bird = put(game, 0, 2, '1');
+  const corpse = put(game, 1, 2, '9');
+  put(game, 1, 4, '8', 3);
+  game.players[1].skills.push('skill_reverse_flag');
+  corpse.hp = 1;
+  const intent = { type: 'attack', id: bird.id, target: corpse.id } as const;
+  expect(forecastCombat(game, 0, intent).events).toEqual(expect.arrayContaining([
+    expect.objectContaining({ kind: 'effect', text: expect.stringContaining('死尸免疫这次攻击') }),
+  ]));
+  expect(attack(game, bird, corpse).players[1].field[2]?.hp).toBe(1);
+  const astrologer = put(game, 0, 2, '占星魔术师');
+  expect(attack(game, astrologer, corpse).players[1].field[2]?.hp).toBe(1);
+});
+test('鱼人判定友军受击前的 HP，效果破坏、鱼人被击和保护源退场仍有效', () => {
   const game = stage();
   const bird = put(game, 0, 2, '1');
   const doctor = put(game, 0, 0, '5');
-  const ally = put(game, 1, 2, '3');
-  const fish = put(game, 1, 4, '8', 3);
-  fish.hp = 2;
-  expect(attack(game, bird, ally).players[1].field[2]).toBeNull();
+  const corpse = put(game, 1, 2, '9');
+  const fish = put(game, 1, 4, '8');
   fish.hp = 1;
-  game.players[1].skills.push('skill_reverse_flag');
-  expect(attack(game, bird, ally).players[1].field[2]?.hp).toBe(5);
-  ally.hp = 1;
+  corpse.hp = 2;
+  expect(attack(game, bird, corpse).players[1].field[2]).toBeNull();
+  corpse.hp = 1;
   const use = (target: Unit) => applyIntent(game, 0, { type: 'ability', id: doctor.id, target: target.id });
-  expect(use(ally).players[1].field[2]).toBeNull();
+  expect(use(corpse).players[1].field[2]).toBeNull();
   const next = use(fish);
   expect(next.players[1].field[4]).toBeNull();
   next.active = 0;
-  expect(attack(next, bird, ally).players[1].field[2]).toBeNull();
+  expect(attack(next, bird, corpse).players[1].field[2]).toBeNull();
   game.players[1].field[2] = fish;
   put(game, 1, 4, '8');
-  game.players[1].field[4]!.hp = 1;
   expect(attack(game, bird, fish).players[1].field[2]).toBeNull();
 });
 test('士兵棋从双方各自左2、右2、中位只可对打指定站位', () => {

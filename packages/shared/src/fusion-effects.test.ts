@@ -187,7 +187,7 @@ test('螺旋双格跳空，不重复命中，并绕过鱼人免疫和圣域', ()
   const spiral = put(game, 0, 2, '螺旋终灭');
   const middle = put(game, 1, 2, '圣龙');
   const fish = put(game, 1, 0, '8');
-  fish.hp = 1;
+  middle.hp = 1;
   game.players[1].skills.push('skill_sanctuary');
   const hit = skill(game, spiral);
   expect(hit.log.filter(entry => entry.kind === 'damage').map(entry => [entry.unit, entry.amount]))

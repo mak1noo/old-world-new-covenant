@@ -71,11 +71,11 @@ function adjacent(player: Player, unit: Unit): Unit[] {
   return index < 0 ? [] : [player.field[index - 1], player.field[index + 1]].filter((card): card is Unit => !!card);
 }
 export function protectingFishman(field: readonly (Unit | null)[], target: Unit): Unit | undefined {
-  if (target.card === 'base_8_fishman') return;
+  if (target.hp <= 0 || target.card === 'base_8_fishman') return;
   return field.find(source => {
     if (!source || source.hp <= 0) return false;
     const aura = abilityOf(source, 'protect_non_fishman_allies_low_hp');
-    return !!aura && source.hp <= Number(aura.params.threshold);
+    return !!aura && target.hp <= Number(aura.params.threshold);
   }) ?? undefined;
 }
 function updateAuras(state: Game): void {
