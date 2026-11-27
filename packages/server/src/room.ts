@@ -1,6 +1,7 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import type { Server } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
+import { constants } from '../../shared/src/cards';
 import { applyIntent, createGame, forecastCombat, type Game, type Intent, type Side } from '../../shared/src/game';
 import { battleIntents } from '../../shared/src/legal';
 import { reconnectGraceMs, type ClientMessage, type Difficulty, type ServerMessage } from '../../shared/src/protocol';
@@ -10,7 +11,7 @@ import { observedAction } from './observe';
 
 type Room = {
   code: string; seats: [Member | null, Member | null]; spectators: Set<Member>; ai?: Difficulty;
-  observedLog: Game['log'];
+  playerHpLimit: number; observedLog: Game['log'];
   game?: Game; snapshot?: PublicBoard; timer?: ReturnType<typeof setTimeout>;
 };
 type Member = {
@@ -86,7 +87,7 @@ export function attachRooms(server: Server, options: {
     if (room.ai) return;
     for (const member of members(room)) send(member.socket, { type: 'room', room: {
       code: room.code, role: member.side === null ? 'spectator' : 'player',
-      seats: room.seats.filter(Boolean).length, spectators: room.spectators.size, paused: paused(room),
+      seats: room.seats.filter(Boolean).length, spectators: room.spectators.size, paused: paused(room), playerHpLimit: room.playerHpLimit,
     } });
   }
   function detach(member: Member): void {
@@ -172,7 +173,7 @@ export function attachRooms(server: Server, options: {
     }, aiDelay);
   }
   function start(room: Room): void {
-    room.game = createGame({ seed: seed() });
+    room.game = createGame({ seed: seed(), playerHp: room.playerHpLimit });
     room.snapshot = captureBoard(room.game);
     publish(room);
     scheduleAi(room);
@@ -190,10 +191,11 @@ export function attachRooms(server: Server, options: {
     }
     return member;
   }
-  function create(socket: WebSocket, ai?: Difficulty): void {
+  function create(socket: WebSocket, playerHpLimit = constants.playerHp, ai?: Difficulty): void {
+    if (!positive(playerHpLimit)) throw new Error('初始生命必须为正整数');
     let code: string;
     do { code = String(randomInt(100000, 1000000)); } while (rooms.has(code));
-    const room: Room = { code, seats: [null, null], spectators: new Set(), observedLog: [], ai };
+    const room: Room = { code, seats: [null, null], spectators: new Set(), playerHpLimit, observedLog: [], ai };
     const member = admit(socket, room, 0);
     if (ai) start(room);
     else {
@@ -214,10 +216,10 @@ export function attachRooms(server: Server, options: {
       const input = JSON.parse(data.toString()) as ClientMessage | null;
       if (!input || typeof input !== 'object') throw new Error('消息无效');
       switch (input.type) {
-        case 'create': create(socket); return;
+        case 'create': create(socket, input.playerHp); return;
         case 'solo':
           if (input.difficulty !== 'easy' && input.difficulty !== 'hard') throw new Error('AI 难度无效');
-          create(socket, input.difficulty);
+          create(socket, input.playerHp, input.difficulty);
           return;
         case 'join': {
           if (typeof input.code !== 'string' || !/^\d{6}$/.test(input.code)) throw new Error('请输入 6 位房间码');

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from 'react';
-import { cardById, skillById, constants, positions } from '../../shared/src/cards';
+import { cardById, skillById, positions } from '../../shared/src/cards';
 import { maxHp, protectingFishman, type LogEntry, type Unit } from '../../shared/src/game';
 import type { BattleFrame } from './playback';
 
@@ -110,4 +110,3 @@ export function BenchBacks({ count }: { count: number }) {
     <span className="muted">{count} 张</span>
   </div>;
 }
-export const hpLimit = constants.playerHp;

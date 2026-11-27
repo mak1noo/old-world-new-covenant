@@ -18,7 +18,7 @@ export type LogEntry = {
 };
 export type Game = {
   rng: number; nextId: number; nextUnitId: [number, number]; players: [Player, Player]; phase: 'prep' | 'battle' | 'finished';
-  battle: number; round: number; first: Side; active: Side; progress: boolean; noDamageRounds: number; winner: Side | null;
+  playerHpLimit: number; battle: number; round: number; first: Side; active: Side; progress: boolean; noDamageRounds: number; winner: Side | null;
   log: LogEntry[]; pending?: PendingChoice;
 };
 type Choice = { side: Side; label: string; options: { value: number; label: string }[] };
@@ -152,16 +152,17 @@ function prep(state: Game): void {
     player.ready = player.loveUsed = player.resetUsed = false;
   }
 }
-export function createGame({ seed = 1 }: { seed?: number } = {}): Game {
+export function createGame({ seed = 1, playerHp = constants.playerHp }: { seed?: number; playerHp?: number } = {}): Game {
+  rule(Number.isSafeInteger(playerHp) && playerHp > 0, '初始生命必须为正整数');
   const state: Game = {
-    rng: seed >>> 0, nextId: 1, nextUnitId: [101, 102], players: [] as unknown as Game['players'], phase: 'prep', battle: 1,
+    rng: seed >>> 0, nextId: 1, nextUnitId: [101, 102], players: [] as unknown as Game['players'], phase: 'prep', playerHpLimit: playerHp, battle: 1,
     round: 0, first: 0, active: 0, progress: false, noDamageRounds: 0, winner: null, log: [],
   };
   const createPlayer = (): Player => {
     const deck = constants.serials.flatMap(printed => Array.from({ length: constants.deckSerialCopies },
       () => ({ id: state.nextId++, printed, serial: printed })));
     shuffle(state, deck);
-    return { deck, hp: constants.playerHp, lp: constants.startingLp, hand: [], shop: [], bench: [],
+    return { deck, hp: playerHp, lp: constants.startingLp, hand: [], shop: [], bench: [],
       field: Array.from({ length: constants.fieldSlots }, () => null), aSlot: null,
       skills: [], ready: false, won: false, loveUsed: false, resetUsed: false };
   };

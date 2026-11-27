@@ -3,7 +3,7 @@ import { cardBySerial, constants, skills } from '../../shared/src/cards';
 import { definition, other, type ForecastIntent, type Intent, type RawCard, type Side, type Unit } from '../../shared/src/game';
 import type { ForecastReply, RoomStatus } from '../../shared/src/protocol';
 import type { MatchView, SpectatorInventory } from '../../shared/src/view';
-import { BenchBacks, BoardRow, HealthDetails, Modal, SkillIcons, hp, hpLimit } from './components';
+import { BenchBacks, BoardRow, HealthDetails, Modal, SkillIcons, hp } from './components';
 import { Bench, Prep } from './Prep';
 import { CardDetails, type CardPreview } from './CardGuide';
 import type { BattleFrame } from './playback';
@@ -176,7 +176,7 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
         <section className="battlefield" aria-label="战场">
           <div className="player-bar">
             <span className="avatar enemy-avatar" aria-hidden="true">◆</span><strong>{opponentName}</strong>
-            <button className="life" title="敌方玩家生命明细" onClick={() => playerDetail(other(view.side))}>♥ {view.opponent.hp}/{hpLimit}</button>
+            <button className="life" title="敌方玩家生命明细" onClick={() => playerDetail(other(view.side))}>♥ {view.opponent.hp}/{view.playerHpLimit}</button>
             <span className="stat">速度 <b>{view.opponent.speed}</b></span>
             {observer && <b className="gold" aria-label={`${opponentName} LP`}>{observer.lp} LP</b>}
             <SkillIcons ids={view.opponent.skills} />
@@ -206,7 +206,7 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
             onHp={unitDetail} frame={slotFrame} taunt={view.own.skills.includes(taunt)} battle={battle} canDrag={prep} />
           <div className="player-bar">
             <span className="avatar" aria-hidden="true">◆</span><strong>{ownName}</strong>
-            <button className="life" title="我方玩家生命明细" onClick={() => playerDetail(view.side)}>♥ {view.own.hp}/{hpLimit}</button>
+            <button className="life" title="我方玩家生命明细" onClick={() => playerDetail(view.side)}>♥ {view.own.hp}/{view.playerHpLimit}</button>
             <span className="stat">速度 <b>{ownSpeed}</b></span>
             {observer && <b className="gold" aria-label={`${ownName} LP`}>{view.own.lp} LP</b>}
             <SkillIcons ids={view.own.skills} />

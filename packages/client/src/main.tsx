@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { constants } from '../../shared/src/cards';
 import type { ClientMessage, ForecastReply, RoomRole, RoomStatus, ServerMessage } from '../../shared/src/protocol';
 import type { ForecastIntent } from '../../shared/src/game';
 import { Match } from './Match';
@@ -25,6 +26,7 @@ function App() {
   const [connected, setConnected] = useState(false);
   const [room, setRoom] = useState('');
   const [lobby, setLobby] = useState('');
+  const [startingHp, setStartingHp] = useState(String(constants.playerHp));
   const [menuMode, setMenuMode] = useState<'solo' | 'online'>();
   const [notice, setNotice] = useState('');
   const [panel, setPanel] = useState<'rules' | 'guide' | 'settings'>();
@@ -146,6 +148,11 @@ function App() {
     lastRequest.current = request;
     send(request);
   }
+  function startWithHealth(request: Exclude<GameRequest, { type: 'join' }>) {
+    const playerHp = Number(startingHp);
+    if (Number.isSafeInteger(playerHp) && playerHp > 0) start({ ...request, playerHp });
+    else toast('初始生命必须为正整数');
+  }
   function exit() {
     queued.current = undefined;
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ type: 'leave' }));
@@ -156,7 +163,7 @@ function App() {
     const request = lastRequest.current;
     resetRoom();
     if (request?.type === 'solo') start(request);
-    else start({ type: 'create' });
+    else start({ type: 'create', playerHp: presentation?.state.view.playerHpLimit });
   }
   async function copyRoom(code: string) {
     try {
@@ -188,6 +195,7 @@ function App() {
             {lobby ? <section className="menu-panel lobby"><h2>联机大厅</h2>
               <p>{connectionStatus ?? (spectator ? '观战席 · 等待开战' : '战斗席 · 等待对手加入')}</p>
               <p>战斗席 {roomStatus?.seats ?? 1}/2 · 观战 {roomStatus?.spectators ?? 0} 人</p>
+              <p>初始生命 {roomStatus?.playerHpLimit ?? constants.playerHp} HP / 人</p>
               <output className="room-code">{lobby}</output>
               <div className="inline-actions"><button className="primary" onClick={() => copyRoom(lobby)} title="复制六位房间码">复制房间码</button>
                 {spectator && roomStatus.seats < 2 && <button disabled={blocked} onClick={() => join('player', lobby)}>改坐战斗席</button>}
@@ -200,11 +208,13 @@ function App() {
                   onClick={() => setMenuMode(menuMode === 'online' ? undefined : 'online')}>对战联机</button>
               </div>
               <section id="solo-options" className="menu-panel" hidden={menuMode !== 'solo'} aria-label="单人对战">
-                <button className="primary" onClick={() => start({ type: 'solo', difficulty: 'easy' })} title="与简单 AI 开始一局">简单 AI</button>
-                <button onClick={() => start({ type: 'solo', difficulty: 'hard' })} title="与困难 AI 开始一局">困难 AI</button>
+                <StartingHpInput value={startingHp} change={setStartingHp} />
+                <button className="primary" onClick={() => startWithHealth({ type: 'solo', difficulty: 'easy' })} title="与简单 AI 开始一局">简单 AI</button>
+                <button onClick={() => startWithHealth({ type: 'solo', difficulty: 'hard' })} title="与困难 AI 开始一局">困难 AI</button>
               </section>
               <section id="online-options" className="menu-panel" hidden={menuMode !== 'online'} aria-label="房间联机">
-                <button className="primary" onClick={() => start({ type: 'create' })} title="创建联机房间">创建房间</button>
+                <StartingHpInput value={startingHp} change={setStartingHp} />
+                <button className="primary" onClick={() => startWithHealth({ type: 'create' })} title="创建联机房间">创建房间</button>
                 <form className="room-form" onSubmit={event => {
                   event.preventDefault();
                   join('player');
@@ -225,7 +235,7 @@ function App() {
       </main>}
     {panel === 'rules' && <Modal title="游戏规则" onClose={() => setPanel(undefined)}>
       <ul className="rules">
-        <li>双方各有 15 点玩家生命。每场战斗败者扣血，每满 5 场扣血量增加 1。打满 50 场后比较剩余玩家生命。</li>
+        <li>双方的初始生命默认各为 {constants.playerHp} HP，可在单机开局或联机建房时自定义。每场战斗败者扣血，每满 5 场扣血量增加 1。打满 50 场后比较剩余玩家生命。</li>
         <li>准备时，从自己的牌库抽 7 张手牌。三同号或三连号可升华，同号少一张可花 1 lp 补齐。</li>
         <li>升华时，a 可补数字，产物只能选原有的数字牌。3 + 5 + a 可补 4，产物只可选 3 或 5。数字牌加两张 a 可升华为该数字，三张未变号的 a 可升华为精灵。</li>
         <li>王权、命运、爱等技能变号后，牌的当前数字可用于凑数或补升华组合。升华产物只能选组合中的未变号牌。变回原号的牌在回库前仍仅作数字使用。</li>
@@ -240,6 +250,14 @@ function App() {
     </Modal>}
     {notice && <div className="toast" role="status">{notice}</div>}
   </>;
+}
+
+function StartingHpInput({ value, change }: { value: string; change: (value: string) => void }) {
+  return <label className="starting-hp">
+    初始生命
+    <input type="number" inputMode="numeric" min={1} max={Number.MAX_SAFE_INTEGER} step={1}
+      value={value} onChange={event => change(event.target.value)} />
+  </label>;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

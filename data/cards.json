@@ -1,7 +1,7 @@
 {
   "meta": {
     "gameName": "旧界新约",
-    "rulesVersion": "2.2-观战与精灵更新",
+    "rulesVersion": "2.3-自定义玩家生命",
     "dataVersion": "2026-11-27",
     "description": "本文件是《旧界新约》数字版的唯一卡牌数据源。引擎必须为 abilities[].effect 中出现的每个 effect id 实现行为并配单元测试。",
     "companionDocs": [
@@ -13,7 +13,7 @@
     ]
   },
   "constants": {
-    "playerHp": 15,
+    "playerHp": 30,
     "startingLp": 0,
     "handDrawBase": 7,
     "shopSize": 5,

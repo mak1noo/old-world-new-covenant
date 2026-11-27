@@ -3,11 +3,11 @@ import type { MatchView } from './view';
 
 export type Difficulty = 'easy' | 'hard';
 export type RoomRole = 'player' | 'spectator';
-export type RoomStatus = { code: string; role: RoomRole; seats: number; spectators: number; paused: boolean };
+export type RoomStatus = { code: string; role: RoomRole; seats: number; spectators: number; paused: boolean; playerHpLimit: number };
 export const reconnectGraceMs = 45_000;
 export type ClientMessage =
-  | { type: 'solo'; difficulty: Difficulty }
-  | { type: 'create' }
+  | { type: 'solo'; difficulty: Difficulty; playerHp?: number }
+  | { type: 'create'; playerHp?: number }
   | { type: 'join'; code: string; role?: RoomRole }
   | { type: 'resume'; token: string }
   | { type: 'leave' }

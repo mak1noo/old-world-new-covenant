@@ -53,6 +53,7 @@ test('两个 websocket 客户端创建、加入、打满 50 场，失败操作�
     bob.send({ type: 'join', code });
     const initial = await alice.take('state');
     expect(initial.view.own.hand).toHaveLength(7);
+    expect(initial.view.playerHpLimit).toBe(30);
     expect(initial.view.opponent).not.toHaveProperty('hand');
     expect(initial.view.opponent).not.toHaveProperty('shop');
     expect(initial.view.opponent).not.toHaveProperty('deck');
@@ -102,17 +103,20 @@ test('观战席实时看双方牌区、LP 和操作，战斗席断线暂停且�
     const host = await connect();
     const guest = await connect();
     const watcher = await connect();
-    host.send({ type: 'create' });
+    host.send({ type: 'create', playerHp: 47 });
     const { token } = await host.take('session');
     const { code } = await host.take('lobby');
     watcher.send({ type: 'join', code, role: 'spectator' });
-    expect((await watcher.take('room')).room).toMatchObject({ role: 'spectator', spectators: 1, seats: 1 });
+    expect((await watcher.take('room')).room).toMatchObject({ role: 'spectator', spectators: 1, seats: 1, playerHpLimit: 47 });
     await watcher.take('lobby');
     guest.send({ type: 'join', code, role: 'player' });
     const initial = (await host.take('state')).view;
     const guestInitial = (await guest.take('state')).view;
     const watching = await watcher.take('state');
     expect(watching.legal).toEqual([]);
+    for (const view of [initial, guestInitial, watching.view]) {
+      expect(view).toMatchObject({ playerHpLimit: 47, own: { hp: 47 }, opponent: { hp: 47 } });
+    }
     expect(watching.view.own).toMatchObject({ hand: initial.own.hand, shop: initial.own.shop, bench: [], lp: 0 });
     expect(watching.view.observedOpponent).toEqual({ hand: guestInitial.own.hand, shop: guestInitial.own.shop, bench: [], lp: 0 });
     expect(watching.view.own).not.toHaveProperty('deck');
@@ -154,11 +158,27 @@ test('观战席实时看双方牌区、LP 和操作，战斗席断线暂停且�
     expect((await guest.take('error')).message).toContain('重新连接');
     const resumed = await connect();
     resumed.send({ type: 'resume', token });
-    expect((await resumed.take('state')).view.own).toMatchObject({ ready: true, hand: latestHand, shop: initial.own.shop });
+    expect((await resumed.take('state')).view).toMatchObject({
+      playerHpLimit: 47, own: { hp: 47, ready: true, hand: latestHand, shop: initial.own.shop },
+    });
     expect((await guest.take('room')).room.paused).toBe(false);
     resumed.send({ type: 'intent', intent: { type: 'unready' } });
     expect((await guest.take('state')).view.opponent.ready).toBe(false);
     resumed.send({ type: 'leave' });
     await Promise.all([guest.take('disconnected'), watcher.take('disconnected')]);
+  });
+});
+
+test('拒绝无效初始生命，单机双方使用同一个自定义值', async () => {
+  await testNetwork(async connect => {
+    const player = await connect();
+    player.send({ type: 'create', playerHp: -5 });
+    expect((await player.take('error')).message).toBe('初始生命必须为正整数');
+    player.send({ type: 'solo', difficulty: 'easy', playerHp: 1.5 });
+    expect((await player.take('error')).message).toBe('初始生命必须为正整数');
+    player.send({ type: 'solo', difficulty: 'easy', playerHp: 8 });
+    expect((await player.take('state')).view).toMatchObject({
+      playerHpLimit: 8, own: { hp: 8 }, opponent: { hp: 8 },
+    });
   });
 });

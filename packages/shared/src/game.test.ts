@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { cardBySerial, cards } from './cards';
+import { cardBySerial, cards, constants } from './cards';
 import { addUnit, applyIntent, attackOptions, canSublimate, createGame, forecastCombat, ordinaryDamage, replay, units,
   type Game, type Intent, type Side } from './game';
 import { fusionOptions } from './legal';
@@ -18,6 +18,17 @@ function place(game: Game, side: Side, card: string, slot: number): Game {
   const unit = addUnit(game, side, card);
   return apply(game, side, { type: 'place', id: unit.id, slot });
 }
+
+test('双方默认 30 HP，自定义初始生命后保留上限并正常结算', () => {
+  expect(createGame().playerHpLimit).toBe(30);
+  expect(createGame().players.map(player => player.hp)).toEqual([30, 30]);
+  let game = createGame({ playerHp: 3 });
+  game = ready(place(place(game, 0, base('1'), 2), 1, base('1'), 2));
+  game = apply(game, 0, { type: 'surrender', battle: 1 });
+  expect(game).toMatchObject({ playerHpLimit: 3, phase: 'prep', battle: 2 });
+  expect(game.players.map(player => player.hp)).toEqual([2, 3]);
+  expect(() => createGame({ playerHp: 0 })).toThrow('初始生命必须为正整数');
+});
 
 describe('准备与经济', () => {
   test('牌库守恒，购买和刷新合法，失败操作不改变输入', () => {
@@ -130,11 +141,11 @@ describe('战斗轮次与终局', () => {
     expect(attackOptions(game, 0, bird).targets).toEqual([corpse]);
     expect(() => apply(game, 0, { type: 'skip', id: bird.id })).toThrow('不能跳过');
     game = apply(game, 0, { type: 'attack', id: bird.id, target: corpse.id });
-    expect(game.players[1].hp).toBe(14);
+    expect(game.players[1].hp).toBe(constants.playerHp - 1);
     expect(game.players[1].bench[0].id).toBe(corpse.id);
     expect(game.battle).toBe(2);
     expect(game.log.slice(-2).map(entry => entry.kind)).toEqual(['closing', 'result']);
-    expect(game.log.at(-1)).toMatchObject({ player: 1, amount: 1, before: 15, after: 14 });
+    expect(game.log.at(-1)).toMatchObject({ player: 1, amount: 1, before: constants.playerHp, after: constants.playerHp - 1 });
   });
   test('连续五个完整轮次未伤害才提前平局，50 场空场平局后终局', () => {
     let game = createGame();
@@ -148,7 +159,7 @@ describe('战斗轮次与终局', () => {
     }
     expect(game.battle).toBe(2);
     expect(game.log.at(-1)).toMatchObject({ text: '本场战斗平局', round: 5 });
-    expect(game.players.map(player => player.hp)).toEqual([15, 15]);
+    expect(game.players.map(player => player.hp)).toEqual([constants.playerHp, constants.playerHp]);
     const actions = Array.from({ length: 50 }, () => [{ side: 0 as const, intent: { type: 'ready' } as const },
       { side: 1 as const, intent: { type: 'ready' } as const }]).flat();
     expect(replay(42, actions)).toEqual(replay(42, actions));
@@ -168,7 +179,7 @@ describe('战斗轮次与终局', () => {
     expect(() => apply(game, loser, { type: 'surrender', battle: 2 })).toThrow();
     game = apply(game, loser, { type: 'surrender', battle: 1 });
     expect(game).toMatchObject({ phase: 'prep', battle: 2 });
-    expect(game.players[loser].hp).toBe(14);
+    expect(game.players[loser].hp).toBe(constants.playerHp - 1);
     expect(deckCount(game, loser)).toBe(36);
   });
   test('实际伤害重置无伤害计数，第 50 轮双方人数相同继续战斗', () => {
@@ -195,8 +206,8 @@ describe('战斗轮次与终局', () => {
       const options = attackOptions(game, side, unit);
       game = apply(game, side, options.targets[0] ? { type: 'attack', id: unit.id, target: options.targets[0].id } : { type: 'skip', id: unit.id });
     }
-    expect(game.players[0].hp).toBe(14);
-    expect(game.players[1].hp).toBe(15);
+    expect(game.players[0].hp).toBe(constants.playerHp - 1);
+    expect(game.players[1].hp).toBe(constants.playerHp);
   });
   test('减伤按固定后百分比并向下取整', () => {
     expect(ordinaryDamage(13, 4, [50])).toBe(4);
