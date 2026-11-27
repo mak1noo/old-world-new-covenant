@@ -9,9 +9,10 @@ export type MatchView = {
   opponent: PublicPlayer;
   log: Game['log'];
   observedOpponent?: SpectatorInventory;
+  observedDecks?: [Player['deck'], Player['deck']];
   pending?: { label: string; side: Side; options: { value: number; label: string }[] };
 };
-export function publicPlayer(player: Player): PublicPlayer {
+export function publicPlayer(player: Pick<Player, 'hp' | 'field' | 'skills' | 'ready' | 'bench'>): PublicPlayer {
   return { hp: player.hp, field: structuredClone(player.field), skills: [...player.skills], ready: player.ready,
     benchCount: player.bench.length, speed: speed(player) };
 }
@@ -37,7 +38,20 @@ export function spectatorView(game: Game, log: Game['log']): MatchView {
   const { lp, hand, shop, bench } = game.players[1];
   if (game.pending?.originalIntent.type === 'ready') view.own.ready = true;
   const pending = game.pending && { side: game.pending.side, label: game.pending.label, options: game.pending.options };
-  return { ...view, log, pending, observedOpponent: { lp, hand, shop, bench } };
+  return { ...view, log, pending, observedOpponent: { lp, hand, shop, bench },
+    observedDecks: [game.players[0].deck, game.players[1].deck] };
+}
+export function orientSpectatorView(view: MatchView, side: Side): MatchView {
+  if (view.side === side || !view.observedOpponent) return view;
+  const { lp, hand, shop, bench } = view.own;
+  const { hp, field, skills, ready } = view.opponent;
+  return {
+    ...view,
+    side,
+    own: { ...view.observedOpponent, hp, field, skills, ready, aSlot: null, loveUsed: false, resetUsed: false },
+    opponent: publicPlayer(view.own),
+    observedOpponent: { lp, hand, shop, bench },
+  };
 }
 export function visibleSimulation(game: Game, side: Side, snapshot: PublicBoard): Game {
   const view = viewFor(game, side, snapshot);

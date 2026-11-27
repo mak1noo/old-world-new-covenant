@@ -77,7 +77,7 @@ export function BoardRow({ enemy, field, selected, highlighted, active, onUnit, 
           <span aria-hidden="true" className={`damage-float ${eventKind}`} key={frame!.index}>
             {eventKind === 'heal' ? '+' : '−'}{hp(event.amount)}
           </span>}
-        {unit ? <button className="hp" onClick={() => onHp(unit)} title={`${name} · 查看从者生命明细`}>
+        {unit ? <button className={`hp${battle && unit.acted ? ' acted' : ''}`} onClick={() => onHp(unit)} title={`${name} · 查看从者生命明细`}>
           <span>{name} · HP {hp(unit.hp)}/{hp(maxHp(unit))}</span>
           {!!flags.length && <small>{flags.join(' · ')}</small>}
         </button> : <div className="hp vacant">{index < 0 ? '锁定' : 'HP —'}</div>}

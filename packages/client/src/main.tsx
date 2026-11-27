@@ -4,6 +4,7 @@ import { constants } from '../../shared/src/cards';
 import type { ClientMessage, ForecastReply, RoomRole, RoomStatus, ServerMessage } from '../../shared/src/protocol';
 import type { ForecastIntent } from '../../shared/src/game';
 import { Match } from './Match';
+import { Account } from './Account';
 import { Modal } from './components';
 import { CardGuide } from './CardGuide';
 import { useMatchPlayback } from './playback';
@@ -186,6 +187,7 @@ function App() {
       openRules={() => setPanel('rules')} openGuide={() => setPanel('guide')} openSettings={() => setPanel('settings')} />
       : <main className="menu">
         <div className="menu-scene">
+          <Account />
           <img className="menu-art" src="/art/main-menu.png" width={1585} height={992} alt="" />
           <h1 className="menu-title">
             <span className="menu-title-text">旧界新约 <span lang="en">New Covenant</span></span>

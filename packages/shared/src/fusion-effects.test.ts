@@ -164,6 +164,62 @@ test('螺旋终灭开战选向并直接绕过空格，纯机械追加普通伤�
   expect(result.log.find(entry => entry.kind === 'damage')?.amount).toBe(20);
   expect(attackOptions(result, 0, result.players[0].field[2]!).targets[0]).toBe(result.players[1].field[3]);
 });
+test('螺旋终灭双格各为 2 普通和 8 真伤，下次从第二目标的下一格开始', () => {
+  for (const step of [1, -1]) {
+    const game = stage();
+    const spiral = put(game, 0, 2, '螺旋终灭');
+    spiral.sweep = { column: step === 1 ? 0 : 4, step };
+    const first = put(game, 1, step === 1 ? 4 : 0, '圣龙');
+    const second = put(game, 1, step === 1 ? 3 : 1, '螺旋终灭');
+    const third = put(game, 1, 2, '国王', 2);
+    game.players[1].skills.push('skill_sanctuary', 'skill_reverse_flag');
+    const result = skill(game, spiral);
+    expect(result.log.filter(entry => entry.kind === 'damage').map(entry => [entry.unit, entry.amount]))
+      .toEqual([[first.id, 10], [second.id, 10]]);
+    const nextSpiral = result.players[0].field[2]!;
+    expect(nextSpiral.sweep).toEqual({ column: 2, step });
+    expect(attackOptions(result, 0, nextSpiral).targets.map(unit => unit.id)).toEqual([third.id]);
+    expect(nextSpiral.acted).toBe(true);
+  }
+});
+test('螺旋双格跳空，不重复命中，并绕过鱼人免疫和圣域', () => {
+  const game = stage();
+  const spiral = put(game, 0, 2, '螺旋终灭');
+  const middle = put(game, 1, 2, '圣龙');
+  const fish = put(game, 1, 0, '8');
+  fish.hp = 1;
+  game.players[1].skills.push('skill_sanctuary');
+  const hit = skill(game, spiral);
+  expect(hit.log.filter(entry => entry.kind === 'damage').map(entry => [entry.unit, entry.amount]))
+    .toEqual([[middle.id, 10], [fish.id, 10]]);
+  game.players[1].field[0] = null;
+  expect(skill(game, spiral).log.filter(entry => entry.kind === 'damage').map(entry => entry.unit)).toEqual([middle.id]);
+});
+test('圣龙第十轮打堆尸仍为 15，受中位圣域时显示由 15 抵挡至 10', () => {
+  const game = stage();
+  game.round = 10;
+  const holy = put(game, 0, 2, '圣龙');
+  const pile = put(game, 1, 2, '堆尸', 2);
+  expect(attack(game, holy, pile).log.find(entry => entry.kind === 'damage')).toMatchObject({ amount: 15 });
+  game.players[1].skills.push('skill_sanctuary');
+  const damage = attack(game, holy, pile).log.find(entry => entry.kind === 'damage');
+  expect(damage).toMatchObject({ amount: 10, before: 18, after: 8, text: expect.stringContaining('普通 15→10 · 圣域抵挡 5') });
+});
+test('圣域按入射普通伤害的 5、10、11 边界判档，混伤的真伤不计入', () => {
+  for (const [name, star, expected] of [['士兵棋', 2, 2], ['死尸', 3, 6], ['螺旋终灭', 1, 15]] as const) {
+    const game = stage();
+    const source = put(game, 0, 2, name, star);
+    put(game, 0, 0, '4');
+    const wall = put(game, 1, 2, '圣龙');
+    game.players[1].skills.push('skill_sanctuary');
+    expect(attack(game, source, wall).log.find(entry => entry.kind === 'damage')).toMatchObject({ amount: expected });
+  }
+  const game = stage();
+  const astrologer = put(game, 0, 2, '占星魔术师');
+  const wall = put(game, 1, 2, '圣龙');
+  game.players[1].skills.push('skill_sanctuary');
+  expect(attack(game, astrologer, wall).log.find(entry => entry.kind === 'damage')).toMatchObject({ amount: 5 });
+});
 test('智械龙计自身、机械融合与任意高融，自身攻击为单选', () => {
   const game = stage();
   const mech = put(game, 0, 2, '智械龙');

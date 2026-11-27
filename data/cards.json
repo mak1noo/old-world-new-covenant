@@ -851,7 +851,7 @@
             ],
             "immuneOtherReduction": true
           },
-          "text": "给左右相邻友军减伤4/50%，自身减伤3/5；这张卡不受其他减伤效果影响。"
+          "text": "相邻友军在国王一星时抵挡 4 点普通伤害，二星时普通伤害乘以 (1 − 50%)。自身分别抵挡 3/5 点普通伤害，不叠加其他减伤。"
         }
       ]
     },
@@ -1443,6 +1443,28 @@
             "bonus": 2
           },
           "text": "当自己场上无机械种以外的卡时，伤害+2（必发）。"
+        },
+        {
+          "id": "spiral_immune_taunt",
+          "name": "无视嘲讽",
+          "kind": "continuous",
+          "mandatory": true,
+          "effect": "immune_taunt",
+          "params": {},
+          "text": "不受嘲讽效果影响。"
+        },
+        {
+          "id": "spiral_double_sweep",
+          "name": "双格横扫",
+          "kind": "active",
+          "mandatory": false,
+          "limit": "once_per_small_round",
+          "effect": "active_spiral_double_sweep",
+          "params": {
+            "damage": 2,
+            "trueDamage": 8
+          },
+          "text": "沿当前方向攻击接下来的两个目标，各造成 2 普通＋8 真伤，跳过空位且同一目标只命中一次。下次从末次命中之后的站位继续。此攻击的伤害和破坏不受其他效果影响。"
         }
       ]
     },
@@ -1964,7 +1986,7 @@
           }
         ]
       },
-      "text": "中间站位受到的伤害为5-10时防御+3；大于10时防御+5。"
+      "text": "中间站位受到的普通伤害为 5–10 时抵挡 3 点，大于 10 时抵挡 5 点。真伤不参与判档，也不被抵挡。"
     },
     {
       "id": "skill_reverse_flag",
@@ -1995,7 +2017,8 @@
       "params": {
         "bonus": 2
       },
-      "text": "手牌数量加二（叠加军队）。"
+      "text": "手牌数量加二，替换一级军队。",
+      "upgradeOf": "skill_army"
     },
     {
       "id": "skill_bishop",
@@ -2017,7 +2040,8 @@
       "params": {
         "bonus": 2
       },
-      "text": "本回合胜出，下回合准备阶段手牌数量加二（叠加主教）。"
+      "text": "本回合胜出，下回合准备阶段手牌数量加二，替换一级主教。",
+      "upgradeOf": "skill_bishop"
     },
     {
       "id": "skill_adventure",

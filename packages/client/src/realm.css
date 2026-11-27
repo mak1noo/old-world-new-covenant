@@ -220,3 +220,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) { .opening-particles { display: none; } }
+
+.match .hp.acted {
+  border-color: #efc675;
+  box-shadow: inset 0 0 0 1px #efc675;
+}
+.spectator-perspective { display: inline-flex; align-items: center; gap: 6px; }

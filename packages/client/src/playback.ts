@@ -40,9 +40,9 @@ function showEvent(view: MatchView, entry: LogEntry): MatchView {
     field = [...current];
     const [first, second] = entry.swap;
     [field[first], field[second]] = [field[second], field[first]];
-  } else if (entry.unit !== undefined && entry.after !== undefined) {
-    const hp = entry.after;
-    field = current.map(unit => unit && unit.id === entry.unit ? { ...unit, hp } : unit);
+  } else if (entry.unit !== undefined && (entry.after !== undefined || entry.acted)) {
+    field = current.map(unit => unit && unit.id === entry.unit
+      ? { ...unit, hp: entry.after ?? unit.hp, acted: entry.acted || unit.acted } : unit);
   }
   if (field) {
     if (own) next.own = { ...view.own, field };

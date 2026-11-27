@@ -334,3 +334,22 @@ fieldset { border: 1px solid #454e5c; margin-bottom: 6px; }
     100% { opacity: 0; transform: rotate(var(--angle)) translateX(39px) scale(.25); }
   }
 }
+
+.account-entry {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 4px 11px;
+  color: #f7ead2;
+  background: #18100df5;
+  border-color: #a98b5b;
+}
+.account-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-signed-in { overflow-wrap: anywhere; }
+.account-form { display: grid; gap: 12px; }
+.account-form label { display: grid; gap: 3px; }

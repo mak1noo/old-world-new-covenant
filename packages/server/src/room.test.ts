@@ -120,6 +120,9 @@ test('观战席实时看双方牌区、LP 和操作，战斗席断线暂停且�
     expect(watching.view.own).toMatchObject({ hand: initial.own.hand, shop: initial.own.shop, bench: [], lp: 0 });
     expect(watching.view.observedOpponent).toEqual({ hand: guestInitial.own.hand, shop: guestInitial.own.shop, bench: [], lp: 0 });
     expect(watching.view.own).not.toHaveProperty('deck');
+    expect(watching.view.observedDecks?.map(deck => deck.length)).toEqual([24, 24]);
+    expect(initial.observedDecks).toBeUndefined();
+    expect(guestInitial.observedDecks).toBeUndefined();
     expect(watching.view.observedOpponent).not.toHaveProperty('deck');
 
     async function perform(player: typeof host, intent: Intent) {

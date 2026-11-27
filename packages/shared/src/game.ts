@@ -1,4 +1,4 @@
-import { cardById, cardBySerial, constants, positions, skillById, validateCards, type Card } from './cards';
+import { cardById, cardBySerial, constants, positions, purchasedUpgrade, skillById, validateCards, type Card } from './cards';
 
 export type Side = 0 | 1;
 export type RawCard = { id: number; printed: string; serial: string; changed?: true };
@@ -15,6 +15,7 @@ export type LogEntry = {
   text: string; unit?: number; source?: number; player?: Side; before?: number; after?: number; amount?: number;
   summoned?: { slot: number; unit: Unit };
   swap?: [number, number];
+  acted?: true;
 };
 export type Game = {
   rng: number; nextId: number; nextUnitId: [number, number]; players: [Player, Player]; phase: 'prep' | 'battle' | 'finished';
@@ -56,7 +57,7 @@ export type CombatForecast = {
   decision?: string;
 };
 export const other = (side: Side): Side => side === 0 ? 1 : 0;
-export const units = (player: Player): Unit[] => player.field.filter((unit): unit is Unit => unit !== null);
+export const units = (player: Pick<Player, 'field'>): Unit[] => player.field.filter((unit): unit is Unit => unit !== null);
 export const definition = (unit: Unit): Card => cardById.get(unit.card)!;
 export const maxHp = (unit: Unit): number => definition(unit).hpByStar[unit.star - 1] + (unit.auraHp ?? 0) + (unit.bonusHp ?? 0);
 const abilityOf = (unit: Unit, effect: string) => definition(unit).abilities.find(ability =>
@@ -111,7 +112,7 @@ function attackBoost(player: Player, unit: Unit): number {
     ? Number(pure.params.bonus) : 0;
   return adjacentBonus + midBonus + stack + (card.attack?.true ? 0 : pureBonus);
 }
-export const speed = (player: Player): number => units(player).reduce((total, unit) => total + definition(unit).apByStar[unit.star - 1], 0);
+export const speed = (player: Pick<Player, 'field'>): number => units(player).reduce((total, unit) => total + definition(unit).apByStar[unit.star - 1], 0);
 function rule(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
@@ -134,7 +135,7 @@ function putBack(state: Game, player: Player, cards: RawCard[]): void {
 }
 function activeSkills(player: Player, effect: string) {
   return player.skills.map(id => skillById.get(id)!).filter(skill =>
-    skill.effect === effect && !player.skills.some(id => skillById.get(id)?.upgradeOf === skill.id));
+    skill.effect === effect && !purchasedUpgrade(player.skills, skill.id));
 }
 function prep(state: Game): void {
   state.phase = 'prep';
@@ -337,9 +338,12 @@ function prepareAction(state: Game, side: Side, intent: Intent, resolution: Reso
     }
     case 'skill': {
       const skill = skillById.get(intent.skill);
-      rule(skill && !player.skills.includes(skill.id), '无法重复购买该固有技能');
+      rule(skill, '固有技能无效');
+      rule(!purchasedUpgrade(player.skills, skill.id), '已拥有该固有技能的升级版');
+      rule(!player.skills.includes(skill.id), '无法重复购买该固有技能');
       rule(!skill.requires || player.skills.includes(skill.requires), '需要先购买基础技能');
       spend(player, skill.costLp);
+      player.skills = player.skills.filter(id => id !== skill.upgradeOf);
       player.skills.push(skill.id);
       return;
     }
@@ -489,7 +493,7 @@ function enemySlots(ownSlot: number, targets: string[]): number[] {
   return [...new Set(columns)].filter(column => validSlot(column, size)).sort((a, b) => a - b)
     .map(column => size - 1 - column);
 }
-export function attackOptions(state: Game, side: Side, unit: Unit): { targets: Unit[]; all: boolean; normal: number; trueDamage: number } {
+export function attackOptions(state: Game, side: Side, unit: Unit, doubleSweep = false): { targets: Unit[]; all: boolean; normal: number; trueDamage: number } {
   const player = state.players[side];
   const enemy = state.players[other(side)];
   const slot = player.field.indexOf(unit);
@@ -511,8 +515,9 @@ export function attackOptions(state: Game, side: Side, unit: Unit): { targets: U
   if (attack.mode === 'sequential') {
     const { column, step } = unit.sweep ?? { column: 0, step: 1 };
     const columns = Array.from({ length: constants.fieldSlots }, (_, offset) => wrapSlot(column + offset * step));
-    const index = columns.findIndex(column => enemy.field[constants.fieldSlots - 1 - column]);
-    slots = index < 0 ? [] : [constants.fieldSlots - 1 - columns[index]];
+    slots = columns.map(column => constants.fieldSlots - 1 - column)
+      .filter(index => enemy.field[index]).slice(0, doubleSweep ? 2 : 1);
+    if (doubleSweep) all = true;
   }
   if (attack.mode === 'hp_percent') damage = Math.max(constants.minDamage, Math.floor(unit.hp * (attack.percent ?? 0) / 100));
   let available = slots.flatMap(index => enemy.field[index] ? [enemy.field[index]!] : []);
@@ -530,6 +535,9 @@ export function attackOptions(state: Game, side: Side, unit: Unit): { targets: U
     else if (allyCard.race === card.race) damage += Number(allyCard.category === 'fusion' ? mech.params.perMechanicalFusion : mech.params.perMechanicalBase);
   }
   if (attack.true && pure && units(player).every(ally => definition(ally).race === card.race)) damage += Number(pure.params.bonus);
+  const sweepEffect = doubleSweep ? abilityOf(unit, 'active_spiral_double_sweep') : undefined;
+  if (doubleSweep && !sweepEffect) return { targets: [], all: true, normal: 0, trueDamage: 0 };
+  if (sweepEffect) return { targets: available, all, normal: Number(sweepEffect.params.damage), trueDamage: Number(sweepEffect.params.trueDamage) };
   return { targets: available, all,
     normal: attack.true ? 0 : damage, trueDamage: attack.true ? damage : attack.trueDamageByStar?.[unit.star - 1] ?? 0 };
 }
@@ -599,7 +607,7 @@ function destroy(state: Game, side: Side, target: Unit, resolution: Resolution, 
     for (const enemy of targets) applyHit(state, other(side), enemy, target, Number(p.damage), Number(p.trueDamage), resolution, { scale: 1, noBoost: true });
   }
 }
-type HitMode = { attack?: boolean; reflect?: boolean; noBoost?: boolean; final?: boolean; scale?: number };
+type HitMode = { attack?: boolean; doubleSweep?: boolean; reflect?: boolean; noBoost?: boolean; final?: boolean; scale?: number };
 function applyHit(state: Game, side: Side, target: Unit, source: Unit, normal: number, trueDamage: number,
   resolution: Resolution, mode: HitMode = {}): { amount: number; killed: boolean } {
   const none = { amount: 0, killed: false };
@@ -607,7 +615,7 @@ function applyHit(state: Game, side: Side, target: Unit, source: Unit, normal: n
   if (!defender.field.includes(target) || target.hp <= 0) return none;
   const attacker = state.players[other(side)];
   if (mode.attack && target.flipped) target.flipped = false;
-  const protector = mode.attack ? protectingFishman(defender.field, target) : undefined;
+  const protector = mode.attack && !mode.doubleSweep ? protectingFishman(defender.field, target) : undefined;
   if (protector) {
     state.log.push({ kind: 'effect', battle: state.battle, round: state.round, unit: target.id, source: protector.id, player: side,
       text: `鱼人的濒危庇护使${definition(target).name}免疫这次攻击` });
@@ -632,18 +640,20 @@ function applyHit(state: Game, side: Side, target: Unit, source: Unit, normal: n
   const scale = mode.scale ?? 1;
   const boosted = normal > 0 ? Math.max(constants.minDamage, Math.floor((normal +
     (mode.noBoost || mode.final ? 0 : attackBoost(attacker, source))) * scale)) : 0;
-  if (!king && defender.field[2] === target) {
+  let sanctuary = 0;
+  if (!mode.final && !king && defender.field[2] === target) {
     for (const skill of activeSkills(defender, 'middle_slot_defense_bonus')) {
       const tiers = skill.params.thresholds as { damageMin: number; damageMax: number | null; defenseBonus: number }[];
-      fixed += tiers.find(tier => boosted >= tier.damageMin && (tier.damageMax === null || boosted <= tier.damageMax))?.defenseBonus ?? 0;
+      sanctuary += tiers.find(tier => boosted >= tier.damageMin && (tier.damageMax === null || boosted <= tier.damageMax))?.defenseBonus ?? 0;
     }
   }
+  fixed += sanctuary;
   const before = target.hp;
   const ordinary = normal > 0 ? mode.final ? boosted : ordinaryDamage(boosted, fixed, percentages) : 0;
   const real = trueDamage > 0 ? Math.max(constants.minDamage, Math.floor(trueDamage * scale)) : 0;
   const amount = ordinary + real;
   if (amount <= 0) return none;
-  const shield = abilityOf(target, 'prevent_destruction_once');
+  const shield = mode.doubleSweep ? undefined : abilityOf(target, 'prevent_destruction_once');
   if (amount >= before && shield && !target.onceUsed && before >= Number(shield.params.minHp) &&
       choose(resolution, { side, label: '占星是否免除这次破坏？',
         options: [{ value: 1, label: '免除' }, { value: 0, label: '放弃' }] })) {
@@ -654,8 +664,13 @@ function applyHit(state: Game, side: Side, target: Unit, source: Unit, normal: n
   }
   target.hp = Math.max(0, target.hp - amount);
   state.progress = true;
+  const parts = [
+    ordinary && `普通 ${boosted === ordinary ? ordinary : `${boosted}→${ordinary}`}`,
+    real && `真伤 ${real}`,
+  ].filter(Boolean).join(' + ');
+  const reduction = sanctuary ? ` · 圣域抵挡 ${sanctuary}` : '';
   state.log.push({ kind: 'damage', battle: state.battle, round: state.round, unit: target.id, source: source.id, player: side,
-    text: `${definition(source).name} → ${definition(target).name} · ${mode.reflect ? '反伤' : [ordinary && '普通', real && '真伤'].filter(Boolean).join(' + ')}`,
+    text: `${definition(source).name} → ${definition(target).name} · ${mode.reflect ? '反伤' : parts}${reduction}`,
     amount, before, after: target.hp });
   const reflect = abilityOf(target, 'reflect_true_damage');
   if (reflect && !mode.reflect && attacker.field.includes(source)) {
@@ -670,19 +685,22 @@ function applyHit(state: Game, side: Side, target: Unit, source: Unit, normal: n
   return { amount, killed };
 }
 function performAttack(state: Game, side: Side, unit: Unit, targetId: number | undefined,
-  resolution: Resolution, scale = 1): void {
-  const options = attackOptions(state, side, unit);
+  resolution: Resolution, scale = 1, doubleSweep = false): void {
+  const options = attackOptions(state, side, unit, doubleSweep);
   const targets = options.all ? options.targets : options.targets.filter(target => target.id === targetId);
   rule(targets.length > 0, '攻击目标不合法');
   const player = state.players[side];
   const enemy = state.players[other(side)];
-  if (unit.sweep) {
-    const column = constants.fieldSlots - 1 - enemy.field.indexOf(targets[0]);
-    unit.sweep.column = wrapSlot(column + unit.sweep.step);
+  if (definition(unit).attack?.mode === 'sequential') {
+    const last = targets[targets.length - 1];
+    const column = constants.fieldSlots - 1 - enemy.field.indexOf(last);
+    const step = unit.sweep?.step ?? 1;
+    unit.sweep = { column: wrapSlot(column + step), step };
   }
   let killDamage = 0;
   for (const target of targets) {
-    const hit = applyHit(state, other(side), target, unit, options.normal, options.trueDamage, resolution, { attack: true, scale });
+    const hit = applyHit(state, other(side), target, unit, options.normal, options.trueDamage, resolution,
+      { attack: true, scale, final: doubleSweep, doubleSweep });
     if (hit.killed) killDamage = hit.amount;
   }
   if (!player.field.includes(unit) || !unit.hp) return;
@@ -706,12 +724,16 @@ function useAbility(state: Game, side: Side, unit: Unit, intent: Extract<Intent,
   const ability = definition(unit).abilities.find(ability => ability.kind === 'active');
   rule(ability && !unit.flipped, '该从者没有主动技');
   const params = ability.params;
-  state.log.push({ kind: 'effect', text: `${definition(unit).name}发动主动技`, battle: state.battle,
-    round: state.round, unit: unit.id, player: side });
+  const skillName = ability.effect === 'active_spiral_double_sweep' ? ability.name : '主动技';
+  state.log.push({ kind: 'effect', text: `${definition(unit).name}发动${skillName}`, battle: state.battle,
+    round: state.round, unit: unit.id, player: side, acted: true });
   const ownSlot = player.field.indexOf(unit);
   const target = units(enemies).find(candidate => candidate.id === intent.target);
   const ally = units(player).find(candidate => candidate.id === intent.target);
   switch (ability.effect) {
+    case 'active_spiral_double_sweep':
+      performAttack(state, side, unit, undefined, resolution, 1, true);
+      break;
     case 'active_self_hp_heal_allies':
       rule(unit.hp > Number(params.selfHpCost), '当前生命不足以发动技能');
       changeHealth(state, side, unit, unit.hp - Number(params.selfHpCost), `${definition(unit).name}支付生命`);
@@ -823,7 +845,7 @@ function battleAction(state: Game, side: Side, intent: Intent, resolution: Resol
   unit.acted = true;
   if (intent.type !== 'ability') {
     state.log.push({ kind: 'action', text: `${definition(unit).name}${intent.type === 'attack' ? '发起攻击' : '跳过'}`,
-      battle: state.battle, round: state.round, unit: unit.id, player: side });
+      battle: state.battle, round: state.round, unit: unit.id, player: side, acted: true });
   }
   const options = attackOptions(state, side, unit);
   if (intent.type === 'ability') {
@@ -906,7 +928,7 @@ validateCards(new Set([
   'stack_attack_on_defeat', 'on_enemy_destroyed_heal', 'own_round_heal_adjacent',
   'reflect_true_damage', 'stack_damage_on_kill', 'active_swap_hp_with_ally', 'cannot_heal_self',
   'active_grant_extra_attack', 'attack_again_on_kill', 'immune_taunt', 'prevent_destruction_once',
-  'conditional_damage_bonus', 'battle_start_grant_hp', 'active_swap_position', 'swap_two_allies_once',
+  'conditional_damage_bonus', 'active_spiral_double_sweep', 'battle_start_grant_hp', 'active_swap_position', 'swap_two_allies_once',
   'death_transform_hp_stack', 'death_transform_pile', 'death_burst_damage', 'active_true_damage_self_destroy',
   'sum_seven_to_lp', 'transform_greater_than_8_to_any', 'swap_serial_pairs', 'add_1_or_2_to_hand_card',
   'lp_on_battle_win', 'middle_slot_defense_bonus', 'middle_slot_taunt',

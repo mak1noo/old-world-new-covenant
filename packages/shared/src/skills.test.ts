@@ -79,15 +79,17 @@ test('命运变回印刷序号时仍只作数字，回库后恢复卡牌身份',
   const returned = ready(game).players[0].deck.find(card => card.id === raw.id);
   expect(returned).toEqual({ id: raw.id, printed: '3', serial: '3' });
 });
-test('常胜二级替换基础版，军队与主教二级都叠加且保留前置', () => {
+test('二级技能替换前置，不能叠加或再买一级', () => {
   let game = prep();
   for (const [name, upgrade] of [['常胜', '常胜二级'], ['军队', '二级军队'], ['主教', '二级主教']]) {
     expect(() => buy(game, upgrade)).toThrow('基础技能');
     game = buy(buy(game, name), upgrade);
+    expect(game.players[0].skills).not.toContain(id(name));
+    expect(() => buy(game, name)).toThrow('已拥有该固有技能的升级版');
   }
   setCard(game, 0, 2, '1');
   const next = ready(game);
-  expect(next.players[0].hand).toHaveLength(13);
+  expect(next.players[0].hand).toHaveLength(11);
   expect(next.players[1].hand).toHaveLength(7);
   expect(next.players[0].lp).toBe(84);
 });

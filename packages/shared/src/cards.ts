@@ -29,6 +29,10 @@ export const cardById = new Map(cards.map(card => [card.id, card]));
 export const cardBySerial = new Map(cards.filter(card => card.serial !== undefined).map(card => [card.serial!, card]));
 export const skillById = new Map(skills.map(skill => [skill.id, skill]));
 
+export function purchasedUpgrade(skillIds: readonly string[], skillId: string): boolean {
+  return skillIds.some(id => skillById.get(id)?.upgradeOf === skillId);
+}
+
 export function validateCards(handledEffects?: ReadonlySet<string>): void {
   if (source.baseCards.length !== 12 || source.fusionCards.length !== 18 || skills.length !== 16 ||
       cardById.size !== cards.length || cardBySerial.size !== constants.serials.length ||

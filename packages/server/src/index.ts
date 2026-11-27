@@ -4,9 +4,12 @@ import { stat } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachRooms } from './room';
+import { accountRoutes } from './accounts';
 import { validateCards } from '../../shared/src/cards';
 
 validateCards();
+const handleAccount = accountRoutes(process.env.COVENANT_ACCOUNTS_FILE ??
+  fileURLToPath(new URL('../../../accounts.json', import.meta.url)));
 const distribution = fileURLToPath(new URL('../../client/dist', import.meta.url));
 const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.webp': 'image/webp', '.png': 'image/png',
@@ -14,6 +17,10 @@ const types: Record<string, string> = {
 
 export const server = createServer(async (request, response) => {
   const path = new URL(request.url ?? '/', 'http://localhost').pathname;
+  if (path === '/api/account' || path.startsWith('/api/account/')) {
+    await handleAccount(request, response, path);
+    return;
+  }
   if (path === '/health') {
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ ok: true }));

@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { cardBySerial, constants, skills } from '../../shared/src/cards';
 import { definition, other, type ForecastIntent, type Intent, type RawCard, type Side, type Unit } from '../../shared/src/game';
 import type { ForecastReply, RoomStatus } from '../../shared/src/protocol';
-import type { MatchView, SpectatorInventory } from '../../shared/src/view';
+import { orientSpectatorView, type MatchView, type SpectatorInventory } from '../../shared/src/view';
 import { BenchBacks, BoardRow, HealthDetails, Modal, SkillIcons, hp } from './components';
 import { Bench, Prep } from './Prep';
 import { CardDetails, type CardPreview } from './CardGuide';
@@ -12,12 +12,14 @@ const taunt = skills.find(skill => skill.effect === 'middle_slot_taunt')!.id;
 type Action = 'attack' | 'ability' | 'arcane';
 type Detail = { title: string; player?: Side; unit?: number };
 
-export function Match({ view, legal, change, exit, restart, frame, openRules, openGuide, openSettings, requestForecast, forecast, spectator, blocked, room, connectionStatus, copyRoom }: {
+export function Match({ view: incomingView, legal, change, exit, restart, frame, openRules, openGuide, openSettings, requestForecast, forecast, spectator, blocked, room, connectionStatus, copyRoom }: {
   view: MatchView; legal: Intent[]; change: (intent: Intent) => void; exit: () => void; restart: () => void;
   frame?: BattleFrame; openRules: () => void; openGuide: () => void; openSettings: () => void;
   requestForecast: (intent: ForecastIntent) => number; forecast?: ForecastReply;
   spectator?: boolean; blocked: boolean; room?: RoomStatus; connectionStatus?: string; copyRoom: (code: string) => void;
 }) {
+  const [perspective, setPerspective] = useState<Side>(0);
+  const view = spectator ? orientSpectatorView(incomingView, perspective) : incomingView;
   const [selected, setSelected] = useState<number>();
   const [action, setAction] = useState<Action>();
   const [firstTarget, setFirstTarget] = useState<number>();
@@ -31,8 +33,8 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
   const battle = view.phase === 'battle';
   const observer = view.observedOpponent;
   const canSurrender = !spectator && !blocked && !frame && (battle || view.phase === 'prep' && !!view.pending);
-  const ownName = spectator ? '一号战斗席' : '我方';
-  const opponentName = spectator ? '二号战斗席' : '敌方';
+  const ownName = spectator ? view.side === 0 ? '一号战斗席' : '二号战斗席' : '我方';
+  const opponentName = spectator ? view.side === 0 ? '二号战斗席' : '一号战斗席' : '敌方';
   const playerName = (side: Side) => side === view.side ? ownName : opponentName;
   const prep = !spectator && !blocked && view.phase === 'prep' && !view.own.ready && !view.pending && !frame;
   const turn = !spectator && !blocked && battle && view.active === view.side && !view.pending && !frame;
@@ -138,6 +140,11 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
       <div className="match-counter"><strong>第 {view.battle} 回合</strong><span>战斗 {view.battle} / {constants.battleCap}</span></div>
       <div className="inline-actions">
         {room && <button className="quiet" title="复制房间码" onClick={() => copyRoom(room.code)}>房间 {room.code} · 观战 {room.spectators}</button>}
+        {spectator && <label className="spectator-perspective">观战视角
+          <select value={perspective} onChange={event => setPerspective(Number(event.target.value) as Side)}>
+            <option value={0}>一号战斗席</option><option value={1}>二号战斗席</option>
+          </select>
+        </label>}
         {canSurrender && !view.pending && <button className="quiet" onClick={() => setSurrender(view.battle)}>本场投降</button>}
         <button className="quiet" aria-pressed={openLog} onClick={() => setOpenLog(!openLog)}>History</button>
         <button className="quiet" onClick={openRules}>游戏规则</button>
@@ -182,7 +189,7 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
             <SkillIcons ids={view.opponent.skills} />
             <span className="player-turn">{battle ? view.first !== view.side ? '先手' : '后手' : view.opponent.ready ? '已准备' : '准备中'}</span>
           </div>
-          {observer ? <ObservedInventory name={opponentName} inventory={observer} preview={setPreview} /> :
+          {observer ? <ObservedInventory name={opponentName} inventory={observer} deck={view.observedDecks?.[other(view.side)]} preview={setPreview} /> :
             <BenchBacks count={view.opponent.benchCount} />}
           <BoardRow enemy field={view.opponent.field} highlighted={targeted} active={new Set()} onUnit={unit => { if (!selectTarget(unit)) inspectUnit(unit); }}
             onHp={unitDetail} frame={slotFrame} taunt={view.opponent.skills.includes(taunt)} battle={battle} canDrag={false} />
@@ -212,7 +219,7 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
             <SkillIcons ids={view.own.skills} />
             <span className="player-turn">{battle ? view.first === view.side ? '先手' : '后手' : view.own.ready ? '已准备' : '准备中'}</span>
           </div>
-          {observer ? <ObservedInventory name={ownName} inventory={view.own} preview={setPreview} /> :
+          {observer ? <ObservedInventory name={ownName} inventory={view.own} deck={view.observedDecks?.[view.side]} preview={setPreview} /> :
             <Bench view={view} enabled={prep} change={commit} selected={selected} onUnit={selectUnit} />}
         </section>
         {!spectator && view.phase === 'prep' && !frame && <Prep key={view.battle} view={view} change={change} blocked={blocked} onPreview={setPreview} />}
@@ -223,7 +230,9 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
           <div className="inline-actions">
             {turn && attacks.length > 0 && <button className="primary" title="选择普通攻击目标" onClick={() => chooseMode('attack')}>攻击</button>}
             {turn && abilities.length > 0 && <button title={selectedUnit ? definition(selectedUnit).abilities.find(ability => ability.kind === 'active')?.text : '主动技'}
-              onClick={() => chooseMode('ability')}>主动技</button>}
+              onClick={() => chooseMode('ability')}>
+              {selectedUnit && definition(selectedUnit).abilities.find(ability => ability.effect === 'active_spiral_double_sweep')?.name || '主动技'}
+            </button>}
             {turn && arcane.length > 0 && <button title="奥术魔术师二星免费技能" onClick={() => chooseMode('arcane')}>免费换位</button>}
             {turn && byUnit.find(intent => intent.type === 'skip') && <button title="消耗所选从者的行动" onClick={() => commit(byUnit.find(intent => intent.type === 'skip')!)}>跳过</button>}
             {!selectedUnit && turn && <button className="quiet" title="跳过第一个没有攻击目标的从者"
@@ -266,8 +275,8 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
   </main>;
 }
 
-function ObservedInventory({ name, inventory, preview }: {
-  name: string; inventory: SpectatorInventory; preview: (card: CardPreview) => void;
+function ObservedInventory({ name, inventory, deck, preview }: {
+  name: string; inventory: SpectatorInventory; deck?: RawCard[]; preview: (card: CardPreview) => void;
 }) {
   const renderRaw = (raw: RawCard) => {
     const card = cardBySerial.get(raw.serial)!;
@@ -286,7 +295,7 @@ function ObservedInventory({ name, inventory, preview }: {
       }) : <span className="muted">空</span>}
     </div>
     <details>
-      <summary>手牌 {inventory.hand.length} 张 · 商店 {inventory.shop.filter(Boolean).length} 张</summary>
+      <summary>抽牌区 {inventory.hand.length} 张 · 商店 {inventory.shop.filter(Boolean).length} 张</summary>
       <div className="observer-row" aria-label={`${name}手牌`}>
         <strong>手牌</strong>{inventory.hand.length ? inventory.hand.map(renderRaw) : <span className="muted">空</span>}
       </div>
@@ -295,6 +304,10 @@ function ObservedInventory({ name, inventory, preview }: {
           <span className="muted" key={`slot-${slot}`}>已售</span>) : <span className="muted">空</span>}
       </div>
     </details>
+    {deck && <details>
+      <summary>待抽牌库 {deck.length} 张</summary>
+      <div className="observer-row" aria-label={`${name}待抽牌库`}>{deck.map(renderRaw)}</div>
+    </details>}
   </section>;
 }
 

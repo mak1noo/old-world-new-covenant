@@ -35,6 +35,9 @@ export function battleIntents(game: Game, side: Side): Intent[] {
       const emit = (target?: Unit, ally?: Unit) => intents.push({ type: 'ability', id, target: target?.id, ally: ally?.id });
       const teammates = friendly.filter(candidate => candidate !== unit);
       switch (ability.effect) {
+        case 'active_spiral_double_sweep':
+          if (targets.length) emit();
+          break;
         case 'active_self_hp_heal_allies':
         case 'active_self_hp_cost_aoe':
           if (unit.hp > Number(ability.params.selfHpCost)) emit();

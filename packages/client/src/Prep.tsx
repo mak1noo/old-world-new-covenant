@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cardById, cardBySerial, constants, skills } from '../../shared/src/cards';
+import { cardById, cardBySerial, constants, purchasedUpgrade, skills } from '../../shared/src/cards';
 import { canSublimate, definition, isNumberOnly, type Intent, type RawCard, type Unit } from '../../shared/src/game';
 import { fusionOptions, type FusionOption } from '../../shared/src/legal';
 import type { MatchView } from '../../shared/src/view';
@@ -147,12 +147,18 @@ export function Prep({ view, change, onPreview, blocked }: { view: MatchView; ch
     {panel && <Modal title={{ fusion: '融合配方', star: '升星', skills: '固有技能', conversion: '炼金与炼心' }[panel]} onClose={() => setPanel(undefined)}>
       {panel === 'fusion' && <FusionBook options={fusionOptions(inventory, player.lp)} enabled={enabled} send={change} />}
       {panel === 'star' && <Star inventory={inventory} send={change} />}
-      {panel === 'skills' && <div className="skills-list">{skills.map(skill => <div className="option" key={skill.id}>
-        <div><strong>{skill.name}</strong><p>{skill.text}</p></div>
-        <button disabled={!enabled || known.includes(skill) || player.lp < skill.costLp || (!!skill.requires && !player.skills.includes(skill.requires))}
-          title={skill.requires ? `需先购买 ${skills.find(entry => entry.id === skill.requires)?.name}` : skill.name}
-          onClick={() => change({ type: 'skill', skill: skill.id })}>{known.includes(skill) ? '已购' : `${skill.costLp} lp`}</button>
-      </div>)}</div>}
+      {panel === 'skills' && <div className="skills-list">{skills.map(skill => {
+        const upgraded = purchasedUpgrade(player.skills, skill.id);
+        const purchased = known.includes(skill);
+        return <div className="option" key={skill.id}>
+          <div><strong>{skill.name}</strong><p>{skill.text}</p></div>
+          <button disabled={!enabled || upgraded || purchased || player.lp < skill.costLp || (!!skill.requires && !player.skills.includes(skill.requires))}
+            title={upgraded ? '已拥有升级版' : skill.requires ? `需先购买 ${skills.find(entry => entry.id === skill.requires)?.name}` : skill.name}
+            onClick={() => change({ type: 'skill', skill: skill.id })}>
+            {upgraded ? '已升级' : purchased ? '已购' : `${skill.costLp} lp`}
+          </button>
+        </div>;
+      })}</div>}
       {panel === 'conversion' && <div className="skills-list">
         {inventory.filter(unit => definition(unit).recipe).map(unit => <div className="option" key={unit.id}>
           <strong>{definition(unit).name} · {unit.star}星</strong>

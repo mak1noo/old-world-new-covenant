@@ -66,9 +66,12 @@ function boardValue(game: Game, side: Side): number {
 function attackValue(game: Game, side: Side, intent: Intent): number {
   if (intent.type === 'skip') return -80;
   if (intent.type === 'arcane') return -10;
-  if (intent.type !== 'attack') return -4;
+  if (intent.type !== 'attack' && intent.type !== 'ability') return -4;
   const unit = units(game.players[side]).find(unit => unit.id === intent.id)!;
-  const options = attackOptions(game, side, unit);
+  const doubleSweep = intent.type === 'ability' &&
+    definition(unit).abilities.some(ability => ability.effect === 'active_spiral_double_sweep');
+  if (intent.type === 'ability' && !doubleSweep) return -4;
+  const options = attackOptions(game, side, unit, doubleSweep);
   const targets = options.all ? options.targets : options.targets.filter(foe => foe.id === intent.target);
   return targets.reduce((total, target) => {
     const potential = options.normal + options.trueDamage;
