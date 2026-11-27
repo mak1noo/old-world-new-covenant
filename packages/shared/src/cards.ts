@@ -1,7 +1,7 @@
 import source from '../../../data/cards.json';
 
 export type Ability = {
-  id: string; effect: string; kind: string; mandatory: boolean;
+  id: string; name: string; effect: string; kind: string; mandatory: boolean;
   trigger?: string; limit?: string; condition?: Record<string, number>;
   params: Record<string, unknown>; text: string;
 };

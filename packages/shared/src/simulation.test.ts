@@ -21,7 +21,7 @@ function assertState(game: Game): void {
     if (new Set(fusions.map(unit => unit.card)).size !== fusions.length) throw new Error('同名融合重复上阵');
   }
   if (game.players.some(player => player.hp === 0) && game.phase !== 'finished') throw new Error('零血仍继续对局');
-  if (game.battle > constants.battleCap || game.round > constants.battleRoundCap) throw new Error('场次或轮次超限');
+  if (game.battle > constants.battleCap) throw new Error('场次超限');
 }
 function randomMatch(seed: number): { game: Game; actions: number; battlesWithDamage: number } {
   let state = createGame({ seed });

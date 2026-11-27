@@ -74,7 +74,9 @@ test('命运变回印刷序号时仍只作数字，回库后恢复卡牌身份',
   game = applyIntent(game, 0, { type: 'change', skill: id('命运'), id: five.id, serial: 'a' });
   expect(() => applyIntent(game, 0, { type: 'sublimate', ids: [firstA.id, secondA.id, five.id], serial: 'a' })).toThrow('未变号');
   expect(applyIntent(game, 0, { type: 'sum', ids: [five.id], total: 10 }).players[0].lp).toBe(game.players[0].lp + 1);
-  const returned = applyIntent(game, 0, { type: 'ready' }).players[0].deck.find(card => card.id === raw.id);
+  setCard(game, 0, 2, '1');
+  setCard(game, 1, 2, '1');
+  const returned = ready(game).players[0].deck.find(card => card.id === raw.id);
   expect(returned).toEqual({ id: raw.id, printed: '3', serial: '3' });
 });
 test('常胜二级替换基础版，军队与主教二级都叠加且保留前置', () => {

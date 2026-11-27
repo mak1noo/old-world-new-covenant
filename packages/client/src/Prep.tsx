@@ -57,7 +57,7 @@ export function Bench({ view, enabled, change, selected, onUnit }: {
   </section>;
 }
 
-export function Prep({ view, change, onPreview }: { view: MatchView; change: Send; onPreview: (preview: CardPreview) => void }) {
+export function Prep({ view, change, onPreview, blocked }: { view: MatchView; change: Send; blocked: boolean; onPreview: (preview: CardPreview) => void }) {
   const player = view.own;
   const [ids, setIds] = useState<number[]>([]);
   const [panel, setPanel] = useState<'fusion' | 'star' | 'skills' | 'conversion'>();
@@ -67,7 +67,8 @@ export function Prep({ view, change, onPreview }: { view: MatchView; change: Sen
   const toggle = (id: number) => setIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
   const selectedIds = selection.map(card => card.id);
   const results = constants.serials.filter(serial => canSublimate(selection, serial));
-  const enabled = !player.ready && !view.pending;
+  const enabled = !blocked && !player.ready && !view.pending;
+  const canUnready = !blocked && player.ready && !view.opponent.ready && !view.pending;
   const known = skills.filter(skill => player.skills.includes(skill.id));
   const possibleSums = known.some(skill => skill.effect === 'sum_seven_to_lp') ? [10, 7] as const : [10] as const;
   const conversions = selection.length === 1 ? known.flatMap(skill => {
@@ -138,8 +139,9 @@ export function Prep({ view, change, onPreview }: { view: MatchView; change: Sen
         <div className="section-title"><h2>整备</h2><b className="gold">{player.lp} lp</b></div>
         <div className="inline-actions">{([['fusion', '融合'], ['star', '升星'], ['skills', '固有技能'], ['conversion', '炼金／炼心']] as const)
           .map(([value, label]) => <button key={value} onClick={() => setPanel(value)} title={label} disabled={!enabled && value !== 'skills'}>{label}</button>)}</div>
-        <button className="primary" disabled={!enabled} title="锁定布阵并归还手牌与商店牌"
-          onClick={() => change({ type: 'ready' })}>{player.ready ? '等待对手' : '准备完成'}</button>
+        <button className="primary" disabled={!enabled && !canUnready}
+          onClick={() => change({ type: player.ready ? 'unready' : 'ready' })}>
+          {canUnready ? '取消准备' : player.ready ? '等待对手' : '准备完成'}</button>
       </section>
     </div>
     {panel && <Modal title={{ fusion: '融合配方', star: '升星', skills: '固有技能', conversion: '炼金与炼心' }[panel]} onClose={() => setPanel(undefined)}>

@@ -18,7 +18,7 @@ export type LogEntry = {
 };
 export type Game = {
   rng: number; nextId: number; nextUnitId: [number, number]; players: [Player, Player]; phase: 'prep' | 'battle' | 'finished';
-  battle: number; round: number; first: Side; active: Side; progress: boolean; winner: Side | null;
+  battle: number; round: number; first: Side; active: Side; progress: boolean; noDamageRounds: number; winner: Side | null;
   log: LogEntry[]; pending?: PendingChoice;
 };
 type Choice = { side: Side; label: string; options: { value: number; label: string }[] };
@@ -34,7 +34,8 @@ function choose(resolution: Resolution, choice: Choice): number {
   return answer;
 }
 export type Intent =
-  | { type: 'ready' | 'refresh' }
+  | { type: 'ready' | 'unready' | 'refresh' }
+  | { type: 'surrender'; battle: number }
   | { type: 'buy'; slot: number }
   | { type: 'sublimate'; ids: number[]; serial: string }
   | { type: 'sum'; ids: number[]; total: 7 | 10 }
@@ -64,6 +65,14 @@ const numberAt = (value: unknown, unit: Unit): number => Array.isArray(value) ? 
 function adjacent(player: Player, unit: Unit): Unit[] {
   const index = player.field.indexOf(unit);
   return index < 0 ? [] : [player.field[index - 1], player.field[index + 1]].filter((card): card is Unit => !!card);
+}
+export function protectingFishman(field: readonly (Unit | null)[], target: Unit): Unit | undefined {
+  if (target.card === 'base_8_fishman') return;
+  return field.find(source => {
+    if (!source || source.hp <= 0) return false;
+    const aura = abilityOf(source, 'protect_non_fishman_allies_low_hp');
+    return !!aura && source.hp <= Number(aura.params.threshold);
+  }) ?? undefined;
 }
 function updateAuras(state: Game): void {
   for (const player of state.players) for (const unit of units(player)) {
@@ -143,7 +152,7 @@ function prep(state: Game): void {
 export function createGame({ seed = 1 }: { seed?: number } = {}): Game {
   const state: Game = {
     rng: seed >>> 0, nextId: 1, nextUnitId: [101, 102], players: [] as unknown as Game['players'], phase: 'prep', battle: 1,
-    round: 0, first: 0, active: 0, progress: false, winner: null, log: [],
+    round: 0, first: 0, active: 0, progress: false, noDamageRounds: 0, winner: null, log: [],
   };
   const createPlayer = (): Player => {
     const deck = constants.serials.flatMap(printed => Array.from({ length: constants.deckSerialCopies },
@@ -218,17 +227,29 @@ function handOperation(state: Game, player: Player, ids: number[]): void {
   player.hand = remove(player.hand, ids);
   putBack(state, player, cards);
 }
+function returnUnusedCards(state: Game): void {
+  for (const player of state.players) {
+    putBack(state, player, [...player.hand, ...player.shop.filter((card): card is RawCard => !!card)]);
+    player.hand = [];
+    player.shop = [];
+  }
+}
 function prepareAction(state: Game, side: Side, intent: Intent, resolution: Resolution): void {
   const player = state.players[side];
+  if (intent.type === 'unready') {
+    rule(player.ready && !state.players[other(side)].ready, '当前无法取消准备');
+    player.ready = false;
+    return;
+  }
   rule(!player.ready, '已准备完成');
   const inventory = [...player.bench, ...units(player)];
   switch (intent.type) {
     case 'ready':
-      putBack(state, player, [...player.hand, ...player.shop.filter((card): card is RawCard => !!card)]);
-      player.hand = [];
-      player.shop = [];
       player.ready = true;
-      if (state.players.every(entry => entry.ready)) startBattle(state, resolution);
+      if (state.players.every(entry => entry.ready)) {
+        returnUnusedCards(state);
+        startBattle(state, resolution);
+      }
       return;
     case 'refresh':
       spend(player, constants.shopRefreshCostLp);
@@ -259,8 +280,16 @@ function prepareAction(state: Game, side: Side, intent: Intent, resolution: Reso
       player.lp++;
       return;
     case 'place': {
-      rule(validSlot(intent.slot, constants.fieldSlots) && !player.field[intent.slot], '目标站位不可用');
+      rule(validSlot(intent.slot, constants.fieldSlots), '目标站位不可用');
       const [unit] = select(inventory, [intent.id]);
+      const from = player.field.indexOf(unit);
+      const occupant = player.field[intent.slot];
+      if (from === intent.slot) return;
+      if (occupant) {
+        rule(from >= 0, '只有战斗区的从者可以直接交换站位');
+        [player.field[from], player.field[intent.slot]] = [occupant, unit];
+        return;
+      }
       rule(definition(unit).category === 'base' || !units(player).some(other => other.id !== unit.id && other.card === unit.card), '同名融合从者已在场');
       removeUnits(player, [unit.id]);
       player.field[intent.slot] = unit;
@@ -366,8 +395,9 @@ function startBattle(state: Game, resolution: Resolution): void {
   state.active = state.first;
   state.round = 1;
   state.progress = false;
+  state.noDamageRounds = 0;
   for (const player of state.players) for (const unit of units(player)) {
-    unit.auraHp = 0;
+    unit.auraHp = unit.bonusHp = 0;
     unit.hp = maxHp(unit);
     unit.acted = false;
     unit.flipped = unit.onceUsed = false;
@@ -379,12 +409,16 @@ function startBattle(state: Game, resolution: Resolution): void {
   for (const side of [state.first, other(state.first)]) {
     const player = state.players[side];
     for (const unit of units(player)) {
-      const opening = abilityOf(unit, 'battle_start_grant_defense');
+      const opening = abilityOf(unit, 'battle_start_grant_hp');
       if (opening) {
-        const target = choose(resolution, { side, label: '唤星选择获得防御的友军',
+        const target = choose(resolution, { side, label: '唤星选择提高生命上限的友军',
           options: [{ value: 0, label: '放弃' }, ...unitChoices(units(player))] });
         const chosen = units(player).find(ally => ally.id === target);
-        if (chosen) chosen.defense = (chosen.defense ?? 0) + numberAt(opening.params.defenseByStar, unit);
+        if (chosen) {
+          const bonus = numberAt(opening.params.hpByStar, unit);
+          chosen.bonusHp = (chosen.bonusHp ?? 0) + bonus;
+          chosen.hp += bonus;
+        }
       }
       if (definition(unit).attack?.mode === 'sequential') {
         const step = choose(resolution, { side, label: '选择螺旋终灭的横扫方向',
@@ -399,6 +433,9 @@ function startBattle(state: Game, resolution: Resolution): void {
 function finishIfEmpty(state: Game): boolean {
   const counts = state.players.map(player => units(player).length);
   if (counts.every(count => count > 0)) return false;
+  if (counts.every(count => count === 0) && state.round === 1 && !state.progress) {
+    state.round = constants.drawAfterNoDamageRounds;
+  }
   finishBattle(state, compare(counts[0], counts[1]));
   return true;
 }
@@ -409,6 +446,12 @@ function finishBattle(state: Game, winner: Side | null): void {
   for (const side of [0, 1] as const) {
     const player = state.players[side];
     player.field = player.field.map(unit => unit?.temporary ? null : unit);
+    for (const unit of [...units(player), ...player.bench]) {
+      unit.auraHp = unit.bonusHp = unit.defense = unit.stack = 0;
+      unit.acted = unit.flipped = unit.onceUsed = false;
+      unit.sweep = undefined;
+      unit.hp = Math.min(unit.hp, maxHp(unit));
+    }
     player.won = side === winner;
     if (player.won) for (const skill of activeSkills(player, 'lp_on_battle_win')) player.lp += Number(skill.params.lp);
   }
@@ -458,8 +501,8 @@ export function attackOptions(state: Game, side: Side, unit: Unit): { targets: U
   }
   let slots = enemySlots(slot, targets);
   if (attack.mode === 'positional') {
-    slots = attack.rules?.some(entry => entry.ownPos === positions.order[slot])
-      ? enemySlots(slot, ['front']) : [];
+    const rule = attack.rules?.find(entry => entry.ownPos === positions.order[slot]);
+    slots = rule?.targets.map(target => positions.order.indexOf(target)).filter(index => index >= 0) ?? [];
   }
   if (attack.mode === 'sequential') {
     const { column, step } = unit.sweep ?? { column: 0, step: 1 };
@@ -471,7 +514,7 @@ export function attackOptions(state: Game, side: Side, unit: Unit): { targets: U
   let available = slots.flatMap(index => enemy.field[index] ? [enemy.field[index]!] : []);
   const taunt = enemy.field[2];
   if (!all && attack.mode !== 'sequential' && taunt && available.includes(taunt) &&
-      activeSkills(enemy, 'middle_slot_taunt_and_no_death_protection').length && !abilityOf(unit, 'immune_taunt')) {
+      activeSkills(enemy, 'middle_slot_taunt').length && !abilityOf(unit, 'immune_taunt')) {
     available = [taunt];
   }
   const card = definition(unit);
@@ -510,7 +553,6 @@ function destroy(state: Game, side: Side, target: Unit, resolution: Resolution, 
   target.auraHp = 0;
   target.hp = 0;
   if (!target.temporary) defender.bench.push(target);
-  state.progress = true;
   state.log.push({ kind: 'destroy', battle: state.battle, round: state.round, unit: target.id, player: side,
     text: `${definition(target).name}${target.temporary ? '被破坏' : '退回升华区'}` });
   if (transformation) {
@@ -560,11 +602,10 @@ function applyHit(state: Game, side: Side, target: Unit, source: Unit, normal: n
   if (!defender.field.includes(target) || target.hp <= 0) return none;
   const attacker = state.players[other(side)];
   if (mode.attack && target.flipped) target.flipped = false;
-  const protectedAt = numberAt(abilityOf(target, 'death_protection_low_hp')?.params.thresholdByStar, target);
-  if (mode.attack && target.hp <= protectedAt &&
-      !(defender.field[2] === target && activeSkills(defender, 'middle_slot_taunt_and_no_death_protection').length)) {
-    state.log.push({ kind: 'effect', battle: state.battle, round: state.round, unit: target.id, player: side,
-      text: `${definition(target).name}免疫这次攻击` });
+  const protector = mode.attack ? protectingFishman(defender.field, target) : undefined;
+  if (protector) {
+    state.log.push({ kind: 'effect', battle: state.battle, round: state.round, unit: target.id, source: protector.id, player: side,
+      text: `鱼人的濒危庇护使${definition(target).name}免疫这次攻击` });
     return none;
   }
   const ignoreDefense = abilityOf(source, 'ignore_defense_except_inherent');
@@ -748,10 +789,12 @@ function advanceBattle(state: Game, actedSide: Side): void {
     beginSmallRound(state, actedSide);
     return;
   }
-  if (!state.progress) {
+  state.noDamageRounds = state.progress ? 0 : state.noDamageRounds + 1;
+  const leader = compare(units(state.players[0]).length, units(state.players[1]).length);
+  if (state.noDamageRounds >= constants.drawAfterNoDamageRounds) {
     finishBattle(state, null);
-  } else if (state.round >= constants.battleRoundCap) {
-    finishBattle(state, compare(units(state.players[0]).length, units(state.players[1]).length));
+  } else if (state.round >= constants.battleRoundCap && leader !== null) {
+    finishBattle(state, leader);
   } else {
     state.log.push({ kind: 'round', text: `第 ${state.round} 战斗轮次结束`, battle: state.battle, round: state.round });
     state.round++;
@@ -803,9 +846,21 @@ export function forecastCombat(game: Game, side: Side, intent: ForecastIntent): 
 export function applyIntent(previous: Game, side: Side, intent: Intent): Game {
   rule(side === 0 || side === 1, '无效玩家');
   rule(previous.phase !== 'finished', '对局已经结束');
+  if (intent.type === 'surrender') {
+    const opening = previous.pending?.originalIntent.type === 'ready';
+    rule((previous.phase === 'battle' || opening) && previous.battle === intent.battle, '当前无法投降本场战斗');
+    const state = { ...structuredClone({ ...previous, pending: undefined, log: [] }), log: [...previous.log] };
+    if (opening) {
+      returnUnusedCards(state);
+      state.round = 1;
+    }
+    state.log.push({ kind: 'action', text: '投降本场战斗', battle: state.battle, round: state.round, player: side });
+    finishBattle(state, other(side));
+    return state;
+  }
   const pending = previous.pending;
   let originalSide = side;
-  let originalIntent = intent;
+  let originalIntent: Intent = intent;
   let answers: number[] = [];
   if (pending) {
     rule(intent.type === 'choose' && side === pending.side, '请先完成当前效果选择');
@@ -832,16 +887,16 @@ export function replay(seed: number, actions: readonly { side: Side; intent: Int
 
 validateCards(new Set([
   'heal_self', 'adjacent_allies_hp_max', 'adjacent_allies_attack', 'active_self_hp_heal_allies',
-  'active_damage_or_heal', 'mid_position_bonus_damage', 'death_protection_low_hp',
+  'active_damage_or_heal', 'mid_position_bonus_damage', 'protect_non_fishman_allies_low_hp',
   'active_damage_then_self_destroy', 'ignore_defense_except_inherent', 'on_kill_gain_lp',
   'active_self_hp_cost_aoe', 'low_hp_attack_aoe_true', 'king_damage_reduction_aura', 'on_kill_heal_team',
   'stack_attack_on_defeat', 'on_enemy_destroyed_heal', 'own_round_heal_adjacent',
   'reflect_true_damage', 'stack_damage_on_kill', 'active_swap_hp_with_ally', 'cannot_heal_self',
   'active_grant_extra_attack', 'attack_again_on_kill', 'immune_taunt', 'prevent_destruction_once',
-  'conditional_damage_bonus', 'battle_start_grant_defense', 'active_swap_position', 'swap_two_allies_once',
+  'conditional_damage_bonus', 'battle_start_grant_hp', 'active_swap_position', 'swap_two_allies_once',
   'death_transform_hp_stack', 'death_transform_pile', 'death_burst_damage', 'active_true_damage_self_destroy',
   'sum_seven_to_lp', 'transform_greater_than_8_to_any', 'swap_serial_pairs', 'add_1_or_2_to_hand_card',
-  'lp_on_battle_win', 'middle_slot_defense_bonus', 'middle_slot_taunt_and_no_death_protection',
+  'lp_on_battle_win', 'middle_slot_defense_bonus', 'middle_slot_taunt',
   'draw_bonus', 'win_draw_bonus_next_prep', 'reset_hand_once_per_prep', 'lp_income_per_5_lp',
   'convert_2star_fusion_to_two_1star', 'decompose_fusion_to_materials',
 ]));

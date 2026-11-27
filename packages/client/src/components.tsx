@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from 'react';
 import { cardById, skillById, constants, positions } from '../../shared/src/cards';
-import { maxHp, type LogEntry, type Unit } from '../../shared/src/game';
+import { maxHp, protectingFishman, type LogEntry, type Unit } from '../../shared/src/game';
 import type { BattleFrame } from './playback';
 
 export function Modal({ title, onClose, children, className }: { title: string; onClose?: () => void; children: ReactNode; className?: string }) {
@@ -37,7 +37,7 @@ export function hp(value: number): string { return Number.isInteger(value) ? Str
 
 export function BoardRow({ enemy, field, selected, highlighted, active, onUnit, onEmpty, onDrop, onHp, taunt, battle, canDrag, frame }: {
   enemy: boolean; field: (Unit | null)[]; selected?: number; highlighted: Set<number>; active: Set<number>;
-  onUnit: (unit: Unit) => void; onEmpty?: (slot: number) => void; onDrop?: (id: number, slot: number) => void;
+  onUnit: (unit: Unit, slot: number) => void; onEmpty?: (slot: number) => void; onDrop?: (id: number, slot: number) => void;
   onHp: (unit: Unit) => void; taunt: boolean; battle: boolean; canDrag: boolean;
   frame?: BattleFrame;
 }) {
@@ -55,9 +55,9 @@ export function BoardRow({ enemy, field, selected, highlighted, active, onUnit, 
         taunt && index === 2 && '嘲讽',
         ((unit.defense ?? 0) > 0 || !!card?.defenseByStar) && '防御',
         (unit.stack ?? 0) > 0 && '强化',
-        unit.auraHp && '生命光环',
-        card?.abilities.some(ability => ability.effect === 'death_protection_low_hp') && !(taunt && index === 2)
-          && unit.hp <= Number((card.abilities.find(ability => ability.effect === 'death_protection_low_hp')!.params.thresholdByStar as number[])[unit.star - 1]) && '死亡保护',
+        unit.auraHp && '守阵光环',
+        unit.bonusHp && !unit.temporary && '星辉赐福',
+        battle && protectingFishman(field, unit) && '攻击免疫',
         battle && unit.star === 2 && card?.abilities.some(ability => ability.effect === 'prevent_destruction_once') && !unit.onceUsed && '免破坏',
         battle && unit.acted && '已行动',
         unit.flipped && '翻面',
@@ -68,7 +68,7 @@ export function BoardRow({ enemy, field, selected, highlighted, active, onUnit, 
         {index < 0 ? <div className="empty locked" title="a 位锁定"><span>◇</span><b>a 位</b></div>
           : unit ? <button className={`unit-card ${card?.category} ${selected === unit.id ? 'selected' : ''} ${highlighted.has(unit.id) ? 'targeted' : ''} ${active.has(unit.id) ? 'actionable' : ''}`}
             draggable={canDrag && !enemy} onDragStart={event => event.dataTransfer.setData('text/plain', String(unit.id))}
-            onClick={() => onUnit(unit)} title={`${name} · ${card?.name}`}><UnitFace unit={unit} /></button>
+            onClick={() => onUnit(unit, index)} title={`${name} · ${card?.name}`}><UnitFace unit={unit} /></button>
             : <button className="empty" onClick={() => onEmpty?.(index)} title={`空站位 ${name}`}><span>◇</span><b>{name}</b></button>}
         {hasParticles && <div aria-hidden="true" className="battle-particles" key={`${unit!.id}-${frame!.index}`}>
           {Array.from({ length: 8 }, (_, particle) => <i key={particle} style={{ '--angle': `${particle * 45}deg` } as CSSProperties} />)}

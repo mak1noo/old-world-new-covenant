@@ -63,15 +63,18 @@ test('飞龙击杀为自身和队友各回血一次', () => {
   const ally = put(game, 0, 3, '6', 3);
   const target = put(game, 1, 3, '1');
   dragon.hp = ally.hp = 2;
-  expect(attack(game, dragon, target).players[0].field.slice(2, 4).map(unit => unit?.hp)).toEqual([5, 5]);
+  expect(attack(game, dragon, target).players[0].field.slice(2, 4).map(unit => unit?.hp)).toEqual([3, 3]);
   target.hp = 9;
   expect(attack(game, dragon, target).players[0].field[2]?.hp).toBe(2);
+  dragon.star = 2;
+  expect(attack(game, dragon, target).players[0].field.slice(2, 4).map(unit => unit?.hp)).toEqual([5, 5]);
 });
 test('二星堆尸收到击杀事件增加攻击并回复', () => {
   const game = stage();
   const pile = put(game, 0, 0, '堆尸', 2);
   const bird = put(game, 0, 2, '1');
   const food = put(game, 1, 2, '1');
+  put(game, 1, 4, '4');
   pile.hp = 4;
   const next = attack(game, bird, food);
   expect(next.players[0].field[0]).toMatchObject({ stack: 3, hp: 6 });
@@ -91,6 +94,7 @@ test('腐化龙混伤只被反一次，致死也反，两边攻击获击杀后�
   const game = stage();
   const first = put(game, 0, 2, '腐化龙');
   const second = put(game, 1, 2, '腐化龙');
+  put(game, 1, 4, '4');
   const result = attack(game, first, second);
   expect(result.players[0].field[2]?.hp).toBe(26);
   expect(result.players[1].field[2]?.hp).toBe(15);
@@ -134,10 +138,11 @@ test('倒吊塔二次攻击不再减防也不连锁', () => {
 test('占星无视嘲讽，二星可免一次受击前血量达标的致死伤害', () => {
   const game = stage();
   const bird = put(game, 0, 2, '骸骨龙');
+  const reserve = put(game, 0, 0, '4');
   const target = put(game, 1, 2, '占星魔术师', 2);
   put(game, 1, 1, '6');
   game.players[0].skills.push('skill_reverse_flag');
-  expect(attackOptions(game, 1, target).targets).toEqual([bird]);
+  expect(attackOptions(game, 1, target).targets).toEqual([bird, reserve]);
   const pending = skill(game, bird, target);
   expect(pending.pending?.side).toBe(1);
   const result = applyIntent(pending, 1, { type: 'choose', value: 1 });
@@ -170,14 +175,22 @@ test('智械龙计自身、机械融合与任意高融，自身攻击为单选',
   expect(attackOptions(game, 0, mech).trueDamage).toBe(28);
   expect(attack(game, mech, enemy).players[1].field[3]?.hp).toBe(35);
 });
-test('唤星开战选择防御或放弃，不占行动', () => {
+test('唤星增加当前和最大生命，施法者退场后保留到本场结束', () => {
   const game = createGame();
   const caller = put(game, 0, 2, '唤星魔术师', 2);
-  put(game, 1, 2, '1');
+  const ally = put(game, 0, 4, '2');
+  const enemy = put(game, 1, 2, '骸骨龙');
+  put(game, 1, 4, '4');
   const pending = ready(game);
-  const next = applyIntent(pending, 0, { type: 'choose', value: caller.id });
-  expect(next.players[0].field[2]).toMatchObject({ defense: 4, acted: false });
-  expect(applyIntent(pending, 0, { type: 'choose', value: 0 }).players[0].field[2]?.defense).toBe(0);
+  let next = applyIntent(pending, 0, { type: 'choose', value: ally.id });
+  expect(next.players[0].field[4]).toMatchObject({ hp: 9, bonusHp: 4, defense: 0, acted: false });
+  next.active = 1;
+  next = applyIntent(next, 1, { type: 'ability', id: enemy.id, target: caller.id });
+  expect(next.players[0].field[2]).toBeNull();
+  expect(maxHp(next.players[0].field[4]!)).toBe(9);
+  next = applyIntent(next, 1, { type: 'surrender', battle: 1 });
+  expect(maxHp(next.players[0].field[4]!)).toBe(5);
+  expect(applyIntent(pending, 0, { type: 'choose', value: 0 }).players[0].field[4]?.hp).toBe(5);
 });
 test('奥术二星免费换人每场一次，普通技能交换自身', () => {
   const game = stage();

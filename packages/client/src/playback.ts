@@ -105,7 +105,12 @@ export function useMatchPlayback(motion: boolean) {
     }
     advance();
   }
-  function receive(state: MatchState) {
+  function receive(state: MatchState, immediate = false) {
+    if (immediate) {
+      clear();
+      commit(state);
+      return;
+    }
     queue.current.push(state);
     pump();
   }

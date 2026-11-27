@@ -70,7 +70,7 @@ export function CardDetails({ card, star, unit, visit }: { card: Card; star: num
     {attack?.alternate && <p><b>{targetNames[attack.alternate.condition.ownPos]}位攻击</b> {names(attack.alternate.targets)}
       {attack.alternate.hitAll && '（同时命中）'} · {attack.alternate.damageByStar.join(' / ')}</p>}
     {card.abilities.length ? <ul className="card-skills">{card.abilities.map(ability =>
-      <li key={ability.id}><strong>{abilityKinds[ability.kind] ?? '技能'}
+      <li key={ability.id}><strong>{ability.kind === 'continuous' || ability.kind === 'battle_start' ? ability.name : abilityKinds[ability.kind] ?? '技能'}
         {ability.condition?.selfStar && ` · ${ability.condition.selfStar} 星`}</strong>{ability.text}</li>)}</ul>
       : <p className="muted">无技能</p>}
     {card.recipe && <section className="card-recipe"><h4>融合配方</h4><RecipeMaterials result={card} visit={visit} /></section>}

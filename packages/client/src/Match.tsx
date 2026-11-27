@@ -1,21 +1,22 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { constants, skills } from '../../shared/src/cards';
 import { definition, other, type ForecastIntent, type Intent, type Side, type Unit } from '../../shared/src/game';
-import type { ForecastReply } from '../../shared/src/protocol';
+import type { ForecastReply, RoomStatus } from '../../shared/src/protocol';
 import type { MatchView } from '../../shared/src/view';
 import { BenchBacks, BoardRow, HealthDetails, Modal, SkillIcons, hp, hpLimit } from './components';
 import { Bench, Prep } from './Prep';
 import { CardDetails, type CardPreview } from './CardGuide';
 import type { BattleFrame } from './playback';
 
-const taunt = skills.find(skill => skill.effect === 'middle_slot_taunt_and_no_death_protection')!.id;
+const taunt = skills.find(skill => skill.effect === 'middle_slot_taunt')!.id;
 type Action = 'attack' | 'ability' | 'arcane';
 type Detail = { title: string; player?: Side; unit?: number };
 
-export function Match({ view, legal, change, exit, restart, frame, openRules, openGuide, openSettings, requestForecast, forecast }: {
+export function Match({ view, legal, change, exit, restart, frame, openRules, openGuide, openSettings, requestForecast, forecast, spectator, blocked, room, connectionStatus, copyRoom }: {
   view: MatchView; legal: Intent[]; change: (intent: Intent) => void; exit: () => void; restart: () => void;
   frame?: BattleFrame; openRules: () => void; openGuide: () => void; openSettings: () => void;
   requestForecast: (intent: ForecastIntent) => number; forecast?: ForecastReply;
+  spectator?: boolean; blocked: boolean; room?: RoomStatus; connectionStatus?: string; copyRoom: (code: string) => void;
 }) {
   const [selected, setSelected] = useState<number>();
   const [action, setAction] = useState<Action>();
@@ -26,9 +27,14 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
   const [filter, setFilter] = useState('all');
   const [historyLimit, setHistoryLimit] = useState(80);
   const [confirmation, setConfirmation] = useState<{ requestId: number; intent: ForecastIntent }>();
+  const [surrender, setSurrender] = useState<number>();
   const battle = view.phase === 'battle';
-  const prep = view.phase === 'prep' && !view.own.ready && !view.pending && !frame;
-  const turn = battle && view.active === view.side && !view.pending && !frame;
+  const canSurrender = !spectator && !blocked && !frame && (battle || view.phase === 'prep' && !!view.pending);
+  const ownName = spectator ? '一号战斗席' : '我方';
+  const opponentName = spectator ? '二号战斗席' : '敌方';
+  const playerName = (side: Side) => side === view.side ? ownName : opponentName;
+  const prep = !spectator && !blocked && view.phase === 'prep' && !view.own.ready && !view.pending && !frame;
+  const turn = !spectator && !blocked && battle && view.active === view.side && !view.pending && !frame;
   const slotFrame = battle && frame?.entry.battle === view.battle && frame.entry.round === view.round ? frame : undefined;
   const active = new Set(legal.flatMap(intent => 'id' in intent ? [intent.id] : []));
   const selectedUnit = view.own.field.find(unit => unit?.id === selected);
@@ -44,7 +50,8 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
     setSelected(undefined);
     setConfirmation(undefined);
   }
-  useEffect(() => { clearSelection(); }, [view.battle, view.round, view.active, view.phase, view.pending]);
+  useEffect(() => { clearSelection(); }, [view.battle, view.round, view.active, view.phase, view.pending, view.own.ready, blocked]);
+  useEffect(() => setSurrender(undefined), [view.battle, view.phase, blocked]);
   if (action === 'attack') attacks.forEach(intent => { if (intent.target) targeted.add(intent.target); });
   if (action === 'ability') abilities.forEach(intent => {
     const id = firstTarget ? intent.target === firstTarget ? intent.ally : undefined : intent.target;
@@ -100,8 +107,12 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
   const inspectUnit = (unit: Unit) => setPreview({ card: definition(unit), star: unit.star, unitId: unit.id });
   const previewUnit = preview?.unitId === undefined ? undefined :
     [...view.own.field, ...view.opponent.field].find(unit => unit?.id === preview.unitId) ?? undefined;
-  function selectUnit(unit: Unit) {
+  function selectUnit(unit: Unit, slot?: number) {
     if (selectTarget(unit)) return;
+    if (prep && slot !== undefined && selectedUnit && selectedUnit.id !== unit.id) {
+      changeSlot(selectedUnit.id, slot);
+      return;
+    }
     inspectUnit(unit);
     if (prep || turn && active.has(unit.id)) {
       setSelected(selected === unit.id ? undefined : unit.id);
@@ -110,11 +121,11 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
     }
   }
   const unitDetail = (unit: Unit) => setDetail({ title: `${definition(unit).name} · 生命明细`, unit: unit.id });
-  const playerDetail = (side: Side) => setDetail({ title: side === view.side ? '我方玩家生命' : '对方玩家生命', player: side });
+  const playerDetail = (side: Side) => setDetail({ title: `${playerName(side)}玩家生命`, player: side });
   const resultFor = (side: Side) => view.log.filter(entry => entry.kind === 'result' && entry.player === side);
   const lastResult = view.log.findLast(entry => entry.kind === 'result');
   const visibleLog = filter === 'all' ? view.log : view.log.filter(entry => String(entry.battle) === filter);
-  const message = view.winner === null ? '平局' : view.winner === view.side ? '胜利' : '落败';
+  const message = view.winner === null ? '平局' : spectator ? `${playerName(view.winner)}获胜` : view.winner === view.side ? '胜利' : '落败';
   const ownSpeed = view.own.field.reduce((sum, unit) => sum + (unit ? definition(unit).apByStar[unit.star - 1] : 0), 0);
   const currentAction = action === 'attack' ? '选择攻击目标' : action === 'ability' ? firstTarget ? '选择追加攻击的敌方目标' : '选择技能目标'
     : action === 'arcane' ? '选择两名友军交换站位' : undefined;
@@ -124,12 +135,15 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
       <button className="brand-link" title="返回主菜单" onClick={exit}><span className="brand-icon">◇</span>旧界新约</button>
       <div className="match-counter"><strong>第 {view.battle} 回合</strong><span>战斗 {view.battle} / {constants.battleCap}</span></div>
       <div className="inline-actions">
+        {room && <button className="quiet" title="复制房间码" onClick={() => copyRoom(room.code)}>房间 {room.code} · 观战 {room.spectators}</button>}
+        {canSurrender && !view.pending && <button className="quiet" onClick={() => setSurrender(view.battle)}>本场投降</button>}
         <button className="quiet" aria-pressed={openLog} onClick={() => setOpenLog(!openLog)}>History</button>
         <button className="quiet" onClick={openRules}>游戏规则</button>
         <button className="quiet" onClick={openGuide}>卡牌图鉴</button>
         <button className="quiet" onClick={openSettings}>设置</button>
         <button className="quiet" title="离开当前对局" onClick={exit}>退出</button></div>
     </header>
+    {connectionStatus && <p className="connection-banner" role="status">{connectionStatus}</p>}
     <div className={`match-layout ${openLog || preview ? 'has-sidebar' : ''}`}>
       {(openLog || preview) && <aside className="match-sidebar">
         {openLog && <section className="battle-log" aria-label="行动记录 History">
@@ -142,7 +156,7 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
           </select></label>
           {visibleLog.length ? <ul className="events">{visibleLog.slice(-historyLimit).reverse().map((entry, index) =>
             <li key={visibleLog.length - index}><span>第 {entry.battle} 场 · {entry.round} 轮
-              {entry.player !== undefined && ` · ${entry.player === view.side ? '我方' : '敌方'}`}</span><b>{entry.text}</b>
+              {entry.player !== undefined && ` · ${playerName(entry.player)}`}</span><b>{entry.text}</b>
               {entry.amount !== undefined && <strong className={entry.kind === 'heal' ? 'healing' : 'damage'}>
                 {entry.kind === 'heal' ? '+' : '−'}{hp(entry.amount)}
               </strong>}</li>)}</ul>
@@ -159,7 +173,7 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
       <div className="match-play-area">
         <section className="battlefield" aria-label="战场">
           <div className="player-bar">
-            <span className="avatar enemy-avatar" aria-hidden="true">◆</span><strong>敌方</strong>
+            <span className="avatar enemy-avatar" aria-hidden="true">◆</span><strong>{opponentName}</strong>
             <button className="life" title="敌方玩家生命明细" onClick={() => playerDetail(other(view.side))}>♥ {view.opponent.hp}/{hpLimit}</button>
             <span className="stat">速度 <b>{view.opponent.speed}</b></span>
             <SkillIcons ids={view.opponent.skills} />
@@ -170,10 +184,10 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
             onHp={unitDetail} frame={slotFrame} taunt={view.opponent.skills.includes(taunt)} battle={battle} canDrag={false} />
           <div className="phase">
             <div key={`${view.phase}-${view.round}`}><span className="gold">◇</span><strong>{view.phase === 'finished' ? '对局结束' : view.pending && !battle ? '战斗开始' : battle ? '战斗阶段' : '准备阶段'}</strong>
-              <span>{frame ? '行动演示' : battle ? `第 ${view.round} 战斗轮次 · ${turn ? '我方行动' : '等待对方'}` : prep ? '构筑与布阵' : '等待结算'}</span></div>
+              <span>{frame ? '行动演示' : battle ? `第 ${view.round} 战斗轮次 · ${spectator ? `${playerName(view.active)}行动` : turn ? '我方行动' : '等待对方'}` : spectator ? '等待双方准备' : prep ? '构筑与布阵' : '等待结算'}</span></div>
             {currentAction && <button className="quiet" title="取消目标选择" onClick={clearSelection}>取消 · {currentAction}</button>}
             {!battle && !frame && lastResult && <small>{lastResult.text === '本场战斗平局' ? `第 ${lastResult.battle} 场平局` :
-              `第 ${lastResult.battle} 场 · ${lastResult.player === view.side ? '我方' : '敌方'}失去 ${lastResult.amount} HP`}</small>}
+              `第 ${lastResult.battle} 场 · ${playerName(lastResult.player!)}失去 ${lastResult.amount} HP`}</small>}
           </div>
           <div className={`battle-event ${frame ? `battle-event-${frame.entry.kind}` : ''}`} role="status">
             {frame && frame.entry.kind !== 'opening' && frame.entry.kind !== 'closing' && frame.entry.kind !== 'result' && <span key={frame.index}>
@@ -181,29 +195,30 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
               {frame.entry.amount === undefined ? '' : ` · ${frame.entry.kind === 'heal' ? '+' : '−'}${hp(frame.entry.amount)} HP`}</span>}
           </div>
           <BoardRow enemy={false} field={view.own.field} selected={selected} highlighted={targeted} active={active}
-            onUnit={selectUnit}
+            onUnit={(unit, slot) => selectUnit(unit, slot)}
             onEmpty={slot => selected && changeSlot(selected, slot)} onDrop={prep ? changeSlot : undefined}
             onHp={unitDetail} frame={slotFrame} taunt={view.own.skills.includes(taunt)} battle={battle} canDrag={prep} />
           <div className="player-bar">
-            <span className="avatar" aria-hidden="true">◆</span><strong>我方</strong>
+            <span className="avatar" aria-hidden="true">◆</span><strong>{ownName}</strong>
             <button className="life" title="我方玩家生命明细" onClick={() => playerDetail(view.side)}>♥ {view.own.hp}/{hpLimit}</button>
             <span className="stat">速度 <b>{ownSpeed}</b></span>
             <SkillIcons ids={view.own.skills} />
             <span className="player-turn">{battle ? view.first === view.side ? '先手' : '后手' : view.own.ready ? '已准备' : '准备中'}</span>
           </div>
-          <Bench view={view} enabled={prep} change={commit} selected={selected} onUnit={selectUnit} />
+          {spectator ? <BenchBacks count={view.own.benchCount ?? 0} /> :
+            <Bench view={view} enabled={prep} change={commit} selected={selected} onUnit={selectUnit} />}
         </section>
-        {view.phase === 'prep' && !frame && <Prep key={view.battle} view={view} change={change} onPreview={setPreview} />}
-        {battle && <section className="combat-controls">
+        {!spectator && view.phase === 'prep' && !frame && <Prep key={view.battle} view={view} change={change} blocked={blocked} onPreview={setPreview} />}
+        {!spectator && battle && <section className="combat-controls">
           <div><h2>{selectedUnit ? definition(selectedUnit).name : '行动'}</h2>
             <small className="muted">{frame ? '正在播放当前行动' : currentAction ?? (turn ? '选择一名尚未行动的从者' : '等待对手完成当前行动')}</small>
           </div>
           <div className="inline-actions">
-            {attacks.length > 0 && <button className="primary" title="选择普通攻击目标" onClick={() => chooseMode('attack')}>攻击</button>}
-            {abilities.length > 0 && <button title={selectedUnit ? definition(selectedUnit).abilities.find(ability => ability.kind === 'active')?.text : '主动技'}
+            {turn && attacks.length > 0 && <button className="primary" title="选择普通攻击目标" onClick={() => chooseMode('attack')}>攻击</button>}
+            {turn && abilities.length > 0 && <button title={selectedUnit ? definition(selectedUnit).abilities.find(ability => ability.kind === 'active')?.text : '主动技'}
               onClick={() => chooseMode('ability')}>主动技</button>}
-            {arcane.length > 0 && <button title="奥术魔术师二星免费技能" onClick={() => chooseMode('arcane')}>免费换位</button>}
-            {byUnit.find(intent => intent.type === 'skip') && <button title="消耗所选从者的行动" onClick={() => commit(byUnit.find(intent => intent.type === 'skip')!)}>跳过</button>}
+            {turn && arcane.length > 0 && <button title="奥术魔术师二星免费技能" onClick={() => chooseMode('arcane')}>免费换位</button>}
+            {turn && byUnit.find(intent => intent.type === 'skip') && <button title="消耗所选从者的行动" onClick={() => commit(byUnit.find(intent => intent.type === 'skip')!)}>跳过</button>}
             {!selectedUnit && turn && <button className="quiet" title="跳过第一个没有攻击目标的从者"
               disabled={!legal.some(intent => intent.type === 'skip')} onClick={() => commit(legal.find(intent => intent.type === 'skip')!)}>结束小轮</button>}
           </div>
@@ -219,14 +234,26 @@ export function Match({ view, legal, change, exit, restart, frame, openRules, op
       cancel={() => setConfirmation(undefined)} execute={() => commit(confirmation.intent)} />}
     {detail && <HealthDetails title={detail.title} onClose={() => setDetail(undefined)} entries={
       detail.player === undefined ? view.log.filter(entry => entry.unit === detail.unit && entry.kind === 'damage') : resultFor(detail.player)} />}
-    {view.pending && !detail && <Modal title={view.pending.label}>
+    {view.pending && !spectator && !detail && surrender === undefined && <Modal title={view.pending.label}>
       <div className="inline-actions">{view.pending.options.map(option => <button className="primary" key={option.value}
-        onClick={() => change({ type: 'choose', value: option.value })} title={option.label}>{option.label}</button>)}</div>
-      {!view.pending.options.length && <p className="muted">对方正在结算效果。</p>}
+        disabled={blocked} onClick={() => change({ type: 'choose', value: option.value })} title={option.label}>{option.label}</button>)}</div>
+      {connectionStatus ? <p role="status">{connectionStatus}</p> :
+        !view.pending.options.length && <p className="muted">对方正在结算效果。</p>}
+      {canSurrender && <button className="quiet" onClick={() => setSurrender(view.battle)}>本场投降</button>}
+    </Modal>}
+    {canSurrender && surrender === view.battle && <Modal title="确认本场投降" onClose={() => setSurrender(undefined)}>
+      <p>本场按失败扣除玩家生命。剩余生命足够时，双方进入下一场准备。</p>
+      <div className="inline-actions">
+        <button onClick={() => setSurrender(undefined)}>继续战斗</button>
+        <button className="primary" onClick={() => {
+          change({ type: 'surrender', battle: surrender });
+          setSurrender(undefined);
+        }}>确认投降</button>
+      </div>
     </Modal>}
     {view.phase === 'finished' && !detail && <Modal title={message} onClose={exit}>
-      <p>共 {view.battle} 场战斗 · 我方 {view.own.hp} HP · 敌方 {view.opponent.hp} HP</p>
-      <div className="inline-actions"><button className="primary" title="以相同模式再来一局" onClick={restart}>再来一局</button>
+      <p>共 {view.battle} 场战斗 · {ownName} {view.own.hp} HP · {opponentName} {view.opponent.hp} HP</p>
+      <div className="inline-actions">{!spectator && <button className="primary" title="以相同模式再来一局" onClick={restart}>再来一局</button>}
         <button title="返回主菜单" onClick={exit}>返回主菜单</button></div>
     </Modal>}
   </main>;

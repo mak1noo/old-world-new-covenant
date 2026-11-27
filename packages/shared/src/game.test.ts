@@ -31,8 +31,11 @@ describe('准备与经济', () => {
     expect(game.players[0].lp).toBe(0);
     expect(game.players[0].bench).toHaveLength(1);
     expect(deckCount(game, 0)).toBe(36);
+    const before = structuredClone(game);
     game = apply(game, 0, { type: 'ready' });
-    expect(game.players[0].deck).toHaveLength(36);
+    expect(() => apply(game, 0, { type: 'refresh' })).toThrow('已准备完成');
+    expect(game.players[0].deck).toEqual(before.players[0].deck);
+    expect(apply(game, 0, { type: 'unready' })).toEqual(before);
     expect(game.players[1].hand).toHaveLength(7);
   });
   test('连号、万能 a、补牌及凑 十', () => {
@@ -133,22 +136,51 @@ describe('战斗轮次与终局', () => {
     expect(game.log.slice(-2).map(entry => entry.kind)).toEqual(['closing', 'result']);
     expect(game.log.at(-1)).toMatchObject({ player: 1, amount: 1, before: 15, after: 14 });
   });
-  test('不交战一轮提前平局，50 场平局后终局', () => {
+  test('连续五个完整轮次未伤害才提前平局，50 场空场平局后终局', () => {
     let game = createGame();
     game = place(game, 0, base('1'), 0);
     game = place(game, 1, base('1'), 0);
     game = ready(game);
-    const side = game.active;
-    const enemy = side === 0 ? 1 : 0;
-    game = apply(game, side, { type: 'skip', id: units(game.players[side])[0].id });
-    expect(game.active).toBe(enemy);
-    game = apply(game, enemy, { type: 'skip', id: units(game.players[enemy])[0].id });
+    for (let i = 0; i < 10; i++) {
+      expect(game.round).toBe(1 + Math.floor(i / 2));
+      const side = game.active;
+      game = apply(game, side, { type: 'skip', id: units(game.players[side])[0].id });
+    }
     expect(game.battle).toBe(2);
-    expect(game.players.map(player => player.hp)).toEqual([15,15]);
+    expect(game.log.at(-1)).toMatchObject({ text: '本场战斗平局', round: 5 });
+    expect(game.players.map(player => player.hp)).toEqual([15, 15]);
     const actions = Array.from({ length: 50 }, () => [{ side: 0 as const, intent: { type: 'ready' } as const },
       { side: 1 as const, intent: { type: 'ready' } as const }]).flat();
     expect(replay(42, actions)).toEqual(replay(42, actions));
     expect(replay(42, actions).phase).toBe('finished');
+  });
+  test('战斗区换位只改变在场位置，投降只结算指定场次', () => {
+    let game = place(place(place(createGame(), 0, base('1'), 0), 0, base('2'), 2), 1, base('8'), 3);
+    const [first, second] = units(game.players[0]);
+    const reserve = addUnit(game, 0, base('3'));
+    expect(() => apply(game, 0, { type: 'place', id: reserve.id, slot: 2 })).toThrow('只有战斗区');
+    game = apply(game, 0, { type: 'place', id: first.id, slot: 2 });
+    expect(units(game.players[0]).map(unit => unit.id)).toEqual([second.id, first.id]);
+    expect(game.log).toEqual([]);
+    game = ready(game);
+    expect(() => apply(game, 0, { type: 'unready' })).toThrow();
+    const loser = game.active === 0 ? 1 : 0;
+    expect(() => apply(game, loser, { type: 'surrender', battle: 2 })).toThrow();
+    game = apply(game, loser, { type: 'surrender', battle: 1 });
+    expect(game).toMatchObject({ phase: 'prep', battle: 2 });
+    expect(game.players[loser].hp).toBe(14);
+    expect(deckCount(game, loser)).toBe(36);
+  });
+  test('实际伤害重置无伤害计数，第 50 轮双方人数相同继续战斗', () => {
+    let game = ready(place(place(createGame(), 0, base('2'), 2), 1, base('8'), 2));
+    game.players[1].field[2]!.hp = 8;
+    game.round = 50;
+    game.noDamageRounds = 4;
+    for (let i = 0; i < 2; i++) {
+      const side = game.active;
+      game = apply(game, side, { type: 'attack', id: game.players[side].field[2]!.id, target: game.players[1 - side].field[2]!.id });
+    }
+    expect(game).toMatchObject({ phase: 'battle', round: 51, noDamageRounds: 0 });
   });
   test('单场第 50 轮以存活数量决胜', () => {
     let game = createGame();

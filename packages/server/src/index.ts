@@ -9,7 +9,7 @@ import { validateCards } from '../../shared/src/cards';
 validateCards();
 const distribution = fileURLToPath(new URL('../../client/dist', import.meta.url));
 const types: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.webp': 'image/webp',
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.webp': 'image/webp', '.png': 'image/png',
 };
 
 export const server = createServer(async (request, response) => {
@@ -25,7 +25,10 @@ export const server = createServer(async (request, response) => {
     response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('页面不存在');
     return;
   }
-  response.writeHead(200, { 'Content-Type': types[extname(file)] ?? 'application/octet-stream' });
+  response.writeHead(200, {
+    'Content-Type': types[extname(file)] ?? 'application/octet-stream',
+    'Cache-Control': path.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
+  });
   createReadStream(file).on('error', () => response.destroy()).pipe(response);
 });
 attachRooms(server);

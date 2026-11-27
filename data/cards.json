@@ -1,8 +1,8 @@
 {
   "meta": {
     "gameName": "旧界新约",
-    "rulesVersion": "2.0-补全版",
-    "dataVersion": "2026-11-26",
+    "rulesVersion": "2.1-联机与战斗更新",
+    "dataVersion": "2026-11-27",
     "description": "本文件是《旧界新约》数字版的唯一卡牌数据源。引擎必须为 abilities[].effect 中出现的每个 effect id 实现行为并配单元测试。",
     "companionDocs": [
       "01-规则书.md",
@@ -47,7 +47,8 @@
       "fusion2": 6,
       "highFusion": 8
     },
-    "battleRoundCap": 50
+    "battleRoundCap": 50,
+    "drawAfterNoDamageRounds": 5
   },
   "positions": {
     "order": [
@@ -184,9 +185,9 @@
       "attack": {
         "mode": "positional",
         "damageByStar": [
-          2,
-          3,
-          4
+          4,
+          5,
+          6
         ],
         "true": false,
         "rules": [
@@ -213,7 +214,7 @@
       "abilities": [
         {
           "id": "soldier_adjacent_hp_max",
-          "name": "一效果",
+          "name": "守阵光环",
           "kind": "continuous",
           "mandatory": true,
           "effect": "adjacent_allies_hp_max",
@@ -224,7 +225,7 @@
               3
             ]
           },
-          "text": "给左右相邻一格的友军增加1/2/3点HP上限（必发）。"
+          "text": "给左右相邻一格的友军增加1/2/3点HP上限（必发）。士兵棋离场时移除加成。"
         }
       ]
     },
@@ -262,7 +263,7 @@
       "abilities": [
         {
           "id": "banner_adjacent_attack",
-          "name": "一效果",
+          "name": "战斗光环",
           "kind": "continuous",
           "mandatory": true,
           "effect": "adjacent_allies_attack",
@@ -273,7 +274,7 @@
               6
             ]
           },
-          "text": "给左右相邻一格的友军增加2/4/6点攻击力。"
+          "text": "给左右相邻一格的友军增加2/4/6点攻击力。战旗离场时移除加成。"
         }
       ]
     },
@@ -392,7 +393,7 @@
       "abilities": [
         {
           "id": "knight_mid_bonus",
-          "name": "一效果",
+          "name": "中阵突击",
           "kind": "continuous",
           "mandatory": true,
           "effect": "mid_position_bonus_damage",
@@ -484,21 +485,14 @@
       "abilities": [
         {
           "id": "fishman_death_protection",
-          "name": "一效果",
+          "name": "濒危庇护",
           "kind": "continuous",
           "mandatory": true,
-          "effect": "death_protection_low_hp",
+          "effect": "protect_non_fishman_allies_low_hp",
           "params": {
-            "thresholdByStar": [
-              1,
-              2,
-              3
-            ],
-            "immuneAttackDamage": true,
-            "immuneAttackDestroy": true,
-            "effectDestroyStillWorks": true
+            "threshold": 1
           },
-          "text": "自身当前HP小于等于1/2/3时，完全免疫攻击伤害且不会被攻击破坏；效果破坏仍然有效（必发）。"
+          "text": "自身当前HP≤1时，所有非鱼人的友军完全免疫攻击伤害与攻击破坏，仍可被效果破坏（必发）。"
         }
       ]
     },
@@ -558,7 +552,7 @@
         },
         {
           "id": "corpse_3star_ignore_defense",
-          "name": "三星效果",
+          "name": "无视减伤",
           "kind": "continuous",
           "mandatory": true,
           "condition": {
@@ -830,7 +824,7 @@
       "abilities": [
         {
           "id": "king_damage_reduction",
-          "name": "一效果",
+          "name": "王权庇护",
           "kind": "continuous",
           "mandatory": true,
           "effect": "king_damage_reduction_aura",
@@ -911,15 +905,15 @@
           "effect": "on_kill_heal_team",
           "params": {
             "healByStar": [
-              3,
-              5
+              1,
+              3
             ],
             "targets": [
               "self",
               "all_allies"
             ]
           },
-          "text": "自己每击败一名敌人，自己和全体友军HP回复3/5（必发）。"
+          "text": "自己每击败一名敌人，自己和全体友军HP回复1/3（必发）。"
         }
       ]
     },
@@ -963,7 +957,7 @@
       "abilities": [
         {
           "id": "pile_stack_attack",
-          "name": "一效果",
+          "name": "败者之力",
           "kind": "continuous",
           "mandatory": true,
           "effect": "stack_attack_on_defeat",
@@ -1114,7 +1108,7 @@
         },
         {
           "id": "corroded_stack_damage",
-          "name": "二效果",
+          "name": "腐化积势",
           "kind": "continuous",
           "mandatory": true,
           "effect": "stack_damage_on_kill",
@@ -1183,7 +1177,7 @@
         },
         {
           "id": "bugqueen_cannot_heal",
-          "name": "一效果附加",
+          "name": "虫母禁疗",
           "kind": "continuous",
           "mandatory": true,
           "effect": "cannot_heal_self",
@@ -1358,7 +1352,7 @@
       "abilities": [
         {
           "id": "astrologer_immune_taunt",
-          "name": "一效果",
+          "name": "星轨洞察",
           "kind": "continuous",
           "mandatory": true,
           "effect": "immune_taunt",
@@ -1438,7 +1432,7 @@
       "abilities": [
         {
           "id": "spiral_conditional_bonus",
-          "name": "一效果",
+          "name": "纯械共鸣",
           "kind": "continuous",
           "mandatory": true,
           "effect": "conditional_damage_bonus",
@@ -1497,7 +1491,7 @@
       "abilities": [
         {
           "id": "mechdragon_field_bonus",
-          "name": "一效果",
+          "name": "智械协同",
           "kind": "continuous",
           "mandatory": true,
           "effect": "conditional_damage_bonus",
@@ -1510,7 +1504,7 @@
         },
         {
           "id": "mechdragon_pure_bonus",
-          "name": "二效果",
+          "name": "纯械增幅",
           "kind": "continuous",
           "mandatory": true,
           "effect": "conditional_damage_bonus",
@@ -1571,19 +1565,19 @@
       },
       "abilities": [
         {
-          "id": "starcaller_battle_start_defense",
-          "name": "一效果",
+          "id": "starcaller_battle_start_hp",
+          "name": "星辉赐福",
           "kind": "battle_start",
           "mandatory": false,
-          "effect": "battle_start_grant_defense",
+          "effect": "battle_start_grant_hp",
           "params": {
-            "defenseByStar": [
+            "hpByStar": [
               3,
               4
             ],
             "choose": "ally"
           },
-          "text": "战斗阶段开始时，可以选择一名己方单位获得3/4点防御（按速度顺序结算，不占小轮）。"
+          "text": "开战时可选一名友军，使其当前HP和HP上限增加3/4点，持续到本场结束。唤星魔术师离场后加成仍有效。"
         }
       ]
     },
@@ -1977,9 +1971,9 @@
       "name": "反旗",
       "costLp": 4,
       "requires": null,
-      "effect": "middle_slot_taunt_and_no_death_protection",
+      "effect": "middle_slot_taunt",
       "params": {},
-      "text": "中间站位拥有嘲讽效果；该单位失去死亡保护。"
+      "text": "中间站位拥有嘲讽效果。"
     },
     {
       "id": "skill_army",

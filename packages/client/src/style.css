@@ -106,8 +106,9 @@ body:has(.menu) { min-width: 0; }
 .menu-panel[hidden] { display: none; }
 .menu-panel h2 { font-size: 18px; }
 .menu-panel button, .menu-panel input { min-height: 36px; }
-.room-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
-.room-form input { min-width: 0; }
+.room-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.room-form input { min-width: 0; grid-column: 1 / -1; }
+.connection-banner { margin: 0; padding: 6px; text-align: center; color: var(--gold); }
 .menu-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: 7px; }
 .menu-links button { background: #130d0be8; border-color: #a98b5b60; color: #e8dcc4; }
 .menu-connection { text-align: center; margin-top: 5px; font-size: 12px; }

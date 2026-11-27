@@ -7,7 +7,7 @@ import { attachRooms } from './room';
 
 async function testNetwork(run: (connect: () => Promise<ReturnType<typeof client>>) => Promise<void>): Promise<void> {
   const server = createServer();
-  const wss = attachRooms(server, { seed: () => 12, aiDelay: 0 });
+  const wss = attachRooms(server, { seed: () => 12, aiDelay: 0, reconnectMs: 1000 });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address() as { port: number };
@@ -91,7 +91,46 @@ test('准备状态更新不会暴露对手实际阵容，掉线通知另一客�
       expect((await alice.take('state')).view.own.lp).toBe(1);
       expect((await bob.take('state')).view.opponent.benchCount).toBe(0);
     }
-    alice.close();
+    alice.send({ type: 'leave' });
     await bob.take('disconnected');
+  });
+});
+
+test('观战席只收到公开阵容，远程战斗席断线暂停且能恢复', async () => {
+  await testNetwork(async connect => {
+    const host = await connect();
+    const guest = await connect();
+    const watcher = await connect();
+    host.send({ type: 'create' });
+    const { token } = await host.take('session');
+    const { code } = await host.take('lobby');
+    watcher.send({ type: 'join', code, role: 'spectator' });
+    expect((await watcher.take('room')).room).toMatchObject({ role: 'spectator', spectators: 1, seats: 1 });
+    await watcher.take('lobby');
+    guest.send({ type: 'join', code, role: 'player' });
+    const initial = (await host.take('state')).view;
+    await guest.take('state');
+    const watching = await watcher.take('state');
+    expect(watching.legal).toEqual([]);
+    expect(watching.view.own).toMatchObject({ hand: [], shop: [], bench: [], lp: 0 });
+    expect(watching.view.opponent).not.toHaveProperty('hand');
+    watcher.send({ type: 'intent', intent: { type: 'ready' } });
+    expect((await watcher.take('error')).message).toContain('观战席');
+    watcher.send({ type: 'forecast', requestId: 1, intent: { type: 'attack', id: 101 } });
+    expect((await watcher.take('forecastError')).message).toContain('观战席');
+    host.send({ type: 'intent', intent: { type: 'ready' } });
+    expect((await guest.take('state')).view.opponent.ready).toBe(true);
+    host.close();
+    expect((await guest.take('room')).room.paused).toBe(true);
+    guest.send({ type: 'intent', intent: { type: 'ready' } });
+    expect((await guest.take('error')).message).toContain('重新连接');
+    const resumed = await connect();
+    resumed.send({ type: 'resume', token });
+    expect((await resumed.take('state')).view.own).toMatchObject({ ready: true, hand: initial.own.hand, shop: initial.own.shop });
+    expect((await guest.take('room')).room.paused).toBe(false);
+    resumed.send({ type: 'intent', intent: { type: 'unready' } });
+    expect((await guest.take('state')).view.opponent.ready).toBe(false);
+    resumed.send({ type: 'leave' });
+    await Promise.all([guest.take('disconnected'), watcher.take('disconnected')]);
   });
 });

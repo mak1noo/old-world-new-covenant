@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { ClientMessage, ForecastReply, ServerMessage } from '../../shared/src/protocol';
+import type { ClientMessage, ForecastReply, RoomRole, RoomStatus, ServerMessage } from '../../shared/src/protocol';
 import type { ForecastIntent } from '../../shared/src/game';
 import { Match } from './Match';
 import { Modal } from './components';
@@ -15,7 +15,13 @@ type GameRequest = Extract<ClientMessage, { type: 'create' | 'join' | 'solo' }>;
 function App() {
   const socket = useRef<WebSocket>(undefined);
   const lastRequest = useRef<GameRequest>(undefined);
-  const queued = useRef<ClientMessage>(undefined);
+  const queued = useRef<GameRequest>(undefined);
+  const session = useRef<string>(undefined);
+  const roomRef = useRef<RoomStatus>(undefined);
+  const reconnectTimer = useRef<number>(undefined);
+  const retryDelay = useRef(500);
+  const recovering = useRef(false);
+  const [roomStatus, setRoomStatus] = useState<RoomStatus>();
   const [connected, setConnected] = useState(false);
   const [room, setRoom] = useState('');
   const [lobby, setLobby] = useState('');
@@ -33,44 +39,86 @@ function App() {
     window.clearTimeout(noticeTimer.current);
     noticeTimer.current = window.setTimeout(() => setNotice(''), 4200);
   };
+  function resetRoom() {
+    session.current = undefined;
+    roomRef.current = undefined;
+    recovering.current = false;
+    clear();
+    setLobby('');
+    setRoomStatus(undefined);
+    setForecast(undefined);
+  }
+  function syncConnected() {
+    recovering.current = false;
+    retryDelay.current = 500;
+    setConnected(true);
+  }
   function open() {
     if (socket.current && socket.current.readyState <= WebSocket.OPEN) return;
+    window.clearTimeout(reconnectTimer.current);
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
     const current = new WebSocket(`${scheme}://${location.host}/ws`);
     socket.current = current;
     const id = ++generation.current;
     current.onopen = () => {
       if (id !== generation.current) return;
-      setConnected(true);
-      if (queued.current) {
-        current.send(JSON.stringify(queued.current));
-        queued.current = undefined;
+      if (session.current) {
+        recovering.current = true;
+        current.send(JSON.stringify({ type: 'resume', token: session.current }));
+      } else {
+        syncConnected();
+        if (queued.current) {
+          current.send(JSON.stringify(queued.current));
+          queued.current = undefined;
+        }
       }
     };
     current.onmessage = event => {
       if (id !== generation.current) return;
       const message = JSON.parse(event.data as string) as ServerMessage;
       switch (message.type) {
-        case 'state': receive(message); setLobby(''); break;
-        case 'lobby': setLobby(message.code); break;
+        case 'session': session.current = message.token; break;
+        case 'room': roomRef.current = message.room; setRoomStatus(message.room); break;
+        case 'state':
+          receive(message, recovering.current || roomRef.current?.role === 'spectator');
+          if (recovering.current) syncConnected();
+          setLobby('');
+          break;
+        case 'lobby':
+          if (recovering.current) syncConnected();
+          setLobby(message.code);
+          break;
         case 'forecast': case 'forecastError':
           if (message.requestId === forecastSequence.current) setForecast(message);
           break;
         case 'error': toast(message.message); break;
-        case 'disconnected': clear(); setLobby(''); toast('对手已离开房间'); break;
+        case 'resumeError': case 'disconnected':
+          resetRoom();
+          syncConnected();
+          toast(message.message ?? '房间已关闭');
+          break;
       }
     };
-    current.onclose = () => {
+    current.onclose = event => {
       if (id !== generation.current) return;
       setConnected(false);
-      clear();
-      setLobby('');
-      toast('与游戏服务的连接已断开');
+      if (event.reason === 'Session resumed') {
+        resetRoom();
+        toast('战斗席已在另一连接恢复');
+      } else if (!session.current) resetRoom();
+      else toast('连接中断，正在恢复席位');
+      reconnectTimer.current = window.setTimeout(open, retryDelay.current);
+      retryDelay.current = Math.min(retryDelay.current * 2, 8000);
     };
   }
   useEffect(() => {
     open();
-    return () => { generation.current++; socket.current?.close(); window.clearTimeout(noticeTimer.current); };
+    return () => {
+      generation.current++;
+      socket.current?.close();
+      window.clearTimeout(noticeTimer.current);
+      window.clearTimeout(reconnectTimer.current);
+    };
   }, []);
   useEffect(() => {
     localStorage.setItem('covenant-motion', motion ? 'on' : 'off');
@@ -78,15 +126,15 @@ function App() {
   }, [motion]);
 
   function send(message: ClientMessage) {
-    if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(message));
-    else if (message.type !== 'intent') {
+    if (socket.current?.readyState === WebSocket.OPEN && !recovering.current) socket.current.send(JSON.stringify(message));
+    else if (message.type === 'create' || message.type === 'join' || message.type === 'solo') {
       queued.current = message;
       open();
     } else toast('连接不可用');
   }
   function requestForecast(intent: ForecastIntent): number {
     const requestId = ++forecastSequence.current;
-    if (socket.current?.readyState === WebSocket.OPEN) {
+    if (connected && !roomStatus?.paused) {
       setForecast(undefined);
       send({ type: 'forecast', requestId, intent });
     } else {
@@ -100,27 +148,34 @@ function App() {
   }
   function exit() {
     queued.current = undefined;
-    if (socket.current?.readyState === WebSocket.OPEN) send({ type: 'leave' });
-    clear();
-    setLobby('');
+    if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ type: 'leave' }));
+    resetRoom();
     setMenuMode(undefined);
   }
   function restart() {
     const request = lastRequest.current;
-    clear();
+    resetRoom();
     if (request?.type === 'solo') start(request);
     else start({ type: 'create' });
   }
-  async function copyRoom() {
+  async function copyRoom(code: string) {
     try {
-      await navigator.clipboard.writeText(lobby);
+      await navigator.clipboard.writeText(code);
       toast('房间码已复制');
-    } catch { toast(`房间码 ${lobby}`); }
+    } catch { toast(`房间码 ${code}`); }
   }
+  function join(role: RoomRole, code = normalizeRoom(room)) {
+    if (/^\d{6}$/.test(code)) start({ type: 'join', code, role });
+    else toast('请输入 6 位房间码');
+  }
+  const spectator = roomStatus?.role === 'spectator';
+  const blocked = !connected || !!roomStatus?.paused;
+  const connectionStatus = !connected ? '正在重新连接…' : roomStatus?.paused ? '战斗席玩家正在重新连接…' : undefined;
   return <>
     {presentation ? <Match view={presentation.state.view} legal={presentation.state.legal} frame={presentation.frame}
-      requestForecast={requestForecast} forecast={forecast}
-      change={intent => send({ type: 'intent', intent })} exit={exit} restart={restart}
+      requestForecast={requestForecast} forecast={forecast} spectator={spectator} blocked={blocked}
+      room={roomStatus} connectionStatus={connectionStatus} copyRoom={copyRoom}
+      change={intent => { if (!blocked && !spectator) send({ type: 'intent', intent }); }} exit={exit} restart={restart}
       openRules={() => setPanel('rules')} openGuide={() => setPanel('guide')} openSettings={() => setPanel('settings')} />
       : <main className="menu">
         <div className="menu-scene">
@@ -130,10 +185,13 @@ function App() {
             <img className="menu-logo" src="/art/main-menu-logo.png" width={740} height={452} alt="" />
           </h1>
           <div className="menu-content">
-            {lobby ? <section className="menu-panel lobby"><h2>联机大厅</h2><p>等待对手加入</p>
+            {lobby ? <section className="menu-panel lobby"><h2>联机大厅</h2>
+              <p>{connectionStatus ?? (spectator ? '观战席 · 等待开战' : '战斗席 · 等待对手加入')}</p>
+              <p>战斗席 {roomStatus?.seats ?? 1}/2 · 观战 {roomStatus?.spectators ?? 0} 人</p>
               <output className="room-code">{lobby}</output>
-              <div className="inline-actions"><button className="primary" onClick={copyRoom} title="复制六位房间码">复制房间码</button>
-                <button onClick={exit} title="关闭房间并返回主菜单">返回</button></div>
+              <div className="inline-actions"><button className="primary" onClick={() => copyRoom(lobby)} title="复制六位房间码">复制房间码</button>
+                {spectator && roomStatus.seats < 2 && <button disabled={blocked} onClick={() => join('player', lobby)}>改坐战斗席</button>}
+                <button onClick={exit} title="离开房间并返回主菜单">返回</button></div>
             </section> : <div className="menu-options">
               <div className="menu-entries">
                 <button aria-expanded={menuMode === 'solo'} aria-controls="solo-options"
@@ -149,11 +207,10 @@ function App() {
                 <button className="primary" onClick={() => start({ type: 'create' })} title="创建联机房间">创建房间</button>
                 <form className="room-form" onSubmit={event => {
                   event.preventDefault();
-                  const code = normalizeRoom(room);
-                  if (/^\d{6}$/.test(code)) start({ type: 'join', code });
-                  else toast('请输入 6 位房间码');
+                  join('player');
                 }}><input aria-label="房间码" inputMode="numeric" maxLength={6} value={room} placeholder="六位房间码" onChange={event => setRoom(event.target.value)} />
-                  <button title="使用房间码加入对局">加入</button></form>
+                  <button type="submit">战斗席</button>
+                  <button type="button" onClick={() => join('spectator')}>观战席</button></form>
               </section>
             </div>}
             <div className="menu-links"><button className="quiet" onClick={() => setPanel('rules')} title="查看规则">规则说明</button>
@@ -173,7 +230,7 @@ function App() {
         <li>升华时，a 可补数字，产物只能选原有的数字牌。3 + 5 + a 可补 4，产物只可选 3 或 5。数字牌加两张 a 可升华为该数字，三张未变号的 a 可升华为精灵。</li>
         <li>王权、命运、爱等技能变号后，牌的当前数字可用于凑数或补升华组合。升华产物只能选组合中的未变号牌。变回原号的牌在回库前仍仅作数字使用。</li>
         <li>凑十赚取 1 lp，商店每张 3 lp。升华区的卡可上阵、升星、融合或卖出。最多布置五名从者。</li>
-        <li>双方准备完成即开战，行动点总和高者先手。每轮每名从者行动一次。单场最多 50 轮，届时比较在场从者数。</li>
+        <li>任一方可在对方准备完成前取消准备。双方锁定后，行动点总和高者先手。连续 5 个完整战斗轮次均未造成伤害则平局。第 50 轮起，存活从者数量不同则按数量决胜，数量相同则继续交战。</li>
       </ul>
       <button onClick={() => setPanel('guide')}>查看卡牌图鉴</button>
     </Modal>}

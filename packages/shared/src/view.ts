@@ -4,7 +4,7 @@ export type PublicPlayer = Pick<Player, 'hp' | 'field' | 'skills' | 'ready'> & {
 export type PublicBoard = [PublicPlayer, PublicPlayer];
 export type MatchView = {
   side: Side; phase: Game['phase']; battle: number; round: number; first: Side; active: Side; winner: Side | null;
-  own: Omit<Player, 'deck' | 'won'>;
+  own: Omit<Player, 'deck' | 'won'> & { benchCount?: number };
   opponent: PublicPlayer;
   log: Game['log'];
   pending?: { label: string; side: Side; options: { value: number; label: string }[] };
@@ -30,6 +30,22 @@ export function viewFor(game: Game, side: Side, snapshot: PublicBoard): MatchVie
   };
   return { side, phase, battle, round, first, active, winner, own, opponent, log, pending };
 }
+export function spectatorView(game: Game, snapshot: PublicBoard): MatchView {
+  const opening = game.pending?.originalIntent.type === 'ready';
+  const publicSide = (side: Side): PublicPlayer => ({
+    ...(game.phase === 'prep' && !opening ? snapshot[side] : publicPlayer(game.players[side])),
+    hp: game.players[side].hp,
+    ready: !!opening || game.players[side].ready,
+  });
+  const left = publicSide(0);
+  const { phase, battle, round, first, active, winner, log } = game;
+  const pending = game.pending && { side: game.pending.side, label: '等待战斗席玩家选择', options: [] };
+  return {
+    side: 0, phase, battle, round, first, active, winner, log, pending,
+    own: { ...left, lp: 0, hand: [], shop: [], bench: [], aSlot: null, loveUsed: false, resetUsed: false },
+    opponent: publicSide(1),
+  };
+}
 export function visibleSimulation(game: Game, side: Side, snapshot: PublicBoard): Game {
   const view = viewFor(game, side, snapshot);
   const rival = other(side);
@@ -38,5 +54,5 @@ export function visibleSimulation(game: Game, side: Side, snapshot: PublicBoard)
   players[rival] = { ...structuredClone(view.opponent), lp: 0, deck: [], hand: [], shop: [], bench: [],
     won: false, loveUsed: false, resetUsed: false, aSlot: null };
   return { players, phase: view.phase, battle: view.battle, round: view.round, first: view.first, active: view.active,
-    winner: view.winner, rng: 1, nextId: 1000000, nextUnitId: [1000001, 1000002], progress: game.progress, log: [] };
+    winner: view.winner, rng: 1, nextId: 1000000, nextUnitId: [1000001, 1000002], progress: game.progress, noDamageRounds: game.noDamageRounds, log: [] };
 }

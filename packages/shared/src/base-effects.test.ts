@@ -106,17 +106,36 @@ test('巨鸟：中位双目标，其他位置正对单目标', () => {
   expect(attackOptions(game, 0, giant).targets).toEqual([right]);
   expect(() => attack(game, giant, left)).toThrow('目标不合法');
 });
-test('鱼人：低血免疫攻击，跨阈值击杀或效果破坏有效', () => {
+test('鱼人：各星级只在 1 HP 时保护非鱼人友军，效果能破坏，退场结束保护', () => {
   const game = stage();
   const bird = put(game, 0, 2, '1');
   const doctor = put(game, 0, 0, '5');
-  const fish = put(game, 1, 2, '8');
-  expect(attack(game, bird, fish).players[1].field[2]).toBeNull();
+  const ally = put(game, 1, 2, '3');
+  const fish = put(game, 1, 4, '8', 3);
+  fish.hp = 2;
+  expect(attack(game, bird, ally).players[1].field[2]).toBeNull();
   fish.hp = 1;
-  expect(attack(game, bird, fish).players[1].field[2]?.hp).toBe(1);
-  expect(applyIntent(game, 0, { type: 'ability', id: doctor.id, target: fish.id }).players[1].field[2]).toBeNull();
   game.players[1].skills.push('skill_reverse_flag');
+  expect(attack(game, bird, ally).players[1].field[2]?.hp).toBe(5);
+  ally.hp = 1;
+  const use = (target: Unit) => applyIntent(game, 0, { type: 'ability', id: doctor.id, target: target.id });
+  expect(use(ally).players[1].field[2]).toBeNull();
+  const next = use(fish);
+  expect(next.players[1].field[4]).toBeNull();
+  next.active = 0;
+  expect(attack(next, bird, ally).players[1].field[2]).toBeNull();
+  game.players[1].field[2] = fish;
+  put(game, 1, 4, '8');
+  game.players[1].field[4]!.hp = 1;
   expect(attack(game, bird, fish).players[1].field[2]).toBeNull();
+});
+test('士兵棋按双方各自的站位名对打，伤害为 4/5/6', () => {
+  const game = stage();
+  for (const [own, enemy, star] of [[0, 4, 1], [2, 2, 2], [4, 0, 3]]) {
+    const soldier = put(game, 0, own, '2', star);
+    const target = put(game, 1, enemy, '6', 3);
+    expect(attackOptions(game, 0, soldier)).toMatchObject({ targets: [target], normal: star + 3 });
+  }
 });
 test('死尸：主动伤害后自毁，三星无视螺旋的防御', () => {
   const game = stage();
