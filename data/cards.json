@@ -490,9 +490,13 @@
           "mandatory": true,
           "effect": "protect_non_fishman_allies_low_hp",
           "params": {
-            "threshold": 1
+            "thresholdByStar": [
+              1,
+              2,
+              3
+            ]
           },
-          "text": "自身当前HP≤1时，所有非鱼人的友军完全免疫攻击伤害与攻击破坏，仍可被效果破坏（必发）。"
+          "text": "鱼人在场时，按自身星级保护当前 HP≤1/2/3 的非鱼人友军。其将被攻击破坏时，免除这次破坏并保留当前 HP（必发）。"
         }
       ]
     },
@@ -504,8 +508,8 @@
       "race": "死灵种",
       "maxStar": 3,
       "hpByStar": [
-        1,
         2,
+        3,
         4
       ],
       "apByStar": [

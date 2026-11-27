@@ -71,11 +71,11 @@ function adjacent(player: Player, unit: Unit): Unit[] {
   return index < 0 ? [] : [player.field[index - 1], player.field[index + 1]].filter((card): card is Unit => !!card);
 }
 export function protectingFishman(field: readonly (Unit | null)[], target: Unit): Unit | undefined {
-  if (target.card === 'base_8_fishman') return;
+  if (target.hp <= 0 || target.card === 'base_8_fishman') return;
   return field.find(source => {
     if (!source || source.hp <= 0) return false;
     const aura = abilityOf(source, 'protect_non_fishman_allies_low_hp');
-    return !!aura && source.hp <= Number(aura.params.threshold);
+    return !!aura && target.hp <= numberAt(aura.params.thresholdByStar, source);
   }) ?? undefined;
 }
 function updateAuras(state: Game): void {
@@ -615,12 +615,6 @@ function applyHit(state: Game, side: Side, target: Unit, source: Unit, normal: n
   if (!defender.field.includes(target) || target.hp <= 0) return none;
   const attacker = state.players[other(side)];
   if (mode.attack && target.flipped) target.flipped = false;
-  const protector = mode.attack && !mode.doubleSweep ? protectingFishman(defender.field, target) : undefined;
-  if (protector) {
-    state.log.push({ kind: 'effect', battle: state.battle, round: state.round, unit: target.id, source: protector.id, player: side,
-      text: `鱼人的濒危庇护使${definition(target).name}免疫这次攻击` });
-    return none;
-  }
   const ignoreDefense = abilityOf(source, 'ignore_defense_except_inherent');
   const king = abilityOf(target, 'king_damage_reduction_aura');
   let fixed = 0;
@@ -653,6 +647,14 @@ function applyHit(state: Game, side: Side, target: Unit, source: Unit, normal: n
   const real = trueDamage > 0 ? Math.max(constants.minDamage, Math.floor(trueDamage * scale)) : 0;
   const amount = ordinary + real;
   if (amount <= 0) return none;
+  const protector = amount >= before && mode.attack && !mode.doubleSweep
+    ? protectingFishman(defender.field, target)
+    : undefined;
+  if (protector) {
+    state.log.push({ kind: 'effect', battle: state.battle, round: state.round, unit: target.id, source: protector.id, player: side,
+      text: `鱼人的濒危庇护使${definition(target).name}免于攻击破坏` });
+    return none;
+  }
   const shield = mode.doubleSweep ? undefined : abilityOf(target, 'prevent_destruction_once');
   if (amount >= before && shield && !target.onceUsed && before >= Number(shield.params.minHp) &&
       choose(resolution, { side, label: '占星是否免除这次破坏？',
