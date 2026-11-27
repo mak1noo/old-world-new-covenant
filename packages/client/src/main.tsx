@@ -19,6 +19,7 @@ function App() {
   const [connected, setConnected] = useState(false);
   const [room, setRoom] = useState('');
   const [lobby, setLobby] = useState('');
+  const [menuMode, setMenuMode] = useState<'solo' | 'online'>();
   const [notice, setNotice] = useState('');
   const [panel, setPanel] = useState<'rules' | 'guide' | 'settings'>();
   const [motion, setMotion] = useState(() => localStorage.getItem('covenant-motion') !== 'off');
@@ -102,6 +103,7 @@ function App() {
     if (socket.current?.readyState === WebSocket.OPEN) send({ type: 'leave' });
     clear();
     setLobby('');
+    setMenuMode(undefined);
   }
   function restart() {
     const request = lastRequest.current;
@@ -121,32 +123,47 @@ function App() {
       change={intent => send({ type: 'intent', intent })} exit={exit} restart={restart}
       openRules={() => setPanel('rules')} openGuide={() => setPanel('guide')} openSettings={() => setPanel('settings')} />
       : <main className="menu">
-        <section className="menu-title"><div className="sigil" aria-hidden="true"><span>◇</span></div>
-          <h1>旧界新约</h1><p>双人卡牌对战</p></section>
-        {lobby ? <section className="menu-panel lobby"><h2>联机大厅</h2><p>等待对手加入</p>
-          <output className="room-code">{lobby}</output>
-          <div className="inline-actions"><button className="primary" onClick={copyRoom} title="复制六位房间码">复制房间码</button>
-            <button onClick={exit} title="关闭房间并返回主菜单">返回</button></div>
-        </section> : <section className="menu-grid">
-          <section className="menu-panel"><h2>单人对战</h2>
-            <button className="primary" onClick={() => start({ type: 'solo', difficulty: 'easy' })} title="与简单 AI 开始一局">简单 AI</button>
-            <button onClick={() => start({ type: 'solo', difficulty: 'hard' })} title="与困难 AI 开始一局">困难 AI</button>
-          </section>
-          <section className="menu-panel"><h2>房间联机</h2>
-            <button className="primary" onClick={() => start({ type: 'create' })} title="创建联机房间">创建房间</button>
-            <form className="room-form" onSubmit={event => {
-              event.preventDefault();
-              const code = normalizeRoom(room);
-              if (/^\d{6}$/.test(code)) start({ type: 'join', code });
-              else toast('请输入 6 位房间码');
-            }}><input aria-label="房间码" inputMode="numeric" maxLength={6} value={room} placeholder="六位房间码" onChange={event => setRoom(event.target.value)} />
-              <button title="使用房间码加入对局">加入</button></form>
-          </section>
-        </section>}
-        <div className="menu-links"><button className="quiet" onClick={() => setPanel('rules')} title="查看规则">规则说明</button>
-          <button className="quiet" onClick={() => setPanel('guide')}>卡牌图鉴</button>
-          <button className="quiet" onClick={() => setPanel('settings')} title="打开设置">设置</button>
-          {connected ? <span className="muted"><i />已连接</span> : <span className="muted offline"><i />连接等待中</span>}
+        <div className="menu-scene">
+          <img className="menu-art" src="/art/main-menu.png" width={1585} height={992} alt="" />
+          <h1 className="menu-title">
+            <span className="menu-title-text">旧界新约 <span lang="en">New Covenant</span></span>
+            <img className="menu-logo" src="/art/main-menu-logo.png" width={740} height={452} alt="" />
+          </h1>
+          <div className="menu-content">
+            {lobby ? <section className="menu-panel lobby"><h2>联机大厅</h2><p>等待对手加入</p>
+              <output className="room-code">{lobby}</output>
+              <div className="inline-actions"><button className="primary" onClick={copyRoom} title="复制六位房间码">复制房间码</button>
+                <button onClick={exit} title="关闭房间并返回主菜单">返回</button></div>
+            </section> : <div className="menu-options">
+              <div className="menu-entries">
+                <button aria-expanded={menuMode === 'solo'} aria-controls="solo-options"
+                  onClick={() => setMenuMode(menuMode === 'solo' ? undefined : 'solo')}>开始游戏</button>
+                <button aria-expanded={menuMode === 'online'} aria-controls="online-options"
+                  onClick={() => setMenuMode(menuMode === 'online' ? undefined : 'online')}>对战联机</button>
+              </div>
+              <section id="solo-options" className="menu-panel" hidden={menuMode !== 'solo'} aria-label="单人对战">
+                <button className="primary" onClick={() => start({ type: 'solo', difficulty: 'easy' })} title="与简单 AI 开始一局">简单 AI</button>
+                <button onClick={() => start({ type: 'solo', difficulty: 'hard' })} title="与困难 AI 开始一局">困难 AI</button>
+              </section>
+              <section id="online-options" className="menu-panel" hidden={menuMode !== 'online'} aria-label="房间联机">
+                <button className="primary" onClick={() => start({ type: 'create' })} title="创建联机房间">创建房间</button>
+                <form className="room-form" onSubmit={event => {
+                  event.preventDefault();
+                  const code = normalizeRoom(room);
+                  if (/^\d{6}$/.test(code)) start({ type: 'join', code });
+                  else toast('请输入 6 位房间码');
+                }}><input aria-label="房间码" inputMode="numeric" maxLength={6} value={room} placeholder="六位房间码" onChange={event => setRoom(event.target.value)} />
+                  <button title="使用房间码加入对局">加入</button></form>
+              </section>
+            </div>}
+            <div className="menu-links"><button className="quiet" onClick={() => setPanel('rules')} title="查看规则">规则说明</button>
+              <button className="quiet" onClick={() => setPanel('guide')}>卡牌图鉴</button>
+              <button className="quiet" onClick={() => setPanel('settings')} title="打开设置">设置</button>
+            </div>
+            <div className="menu-connection">
+              {connected ? <span className="muted"><i />已连接</span> : <span className="muted offline"><i />连接等待中</span>}
+            </div>
+          </div>
         </div>
       </main>}
     {panel === 'rules' && <Modal title="游戏规则" onClose={() => setPanel(undefined)}>

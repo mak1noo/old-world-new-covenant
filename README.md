@@ -4,7 +4,9 @@
 
 ## 启动
 
-需要 Node.js 20 或更新版本。完整解压游戏包后，Windows 双击 `start-game.cmd`，macOS 或 Linux 在解压目录运行 `./start-game.sh`。脚本自动打开浏览器。关闭启动窗口或按 Ctrl+C 退出。
+从 [GitHub Releases](https://github.com/mak1noo/old-world-new-covenant/releases/tag/v0.0.1) 下载 `旧界新约v0.0.1.zip`。需要 Node.js 20 或更新版本。
+
+完整解压游戏包后，Windows 双击 `点击启动游戏.cmd`，macOS 或 Linux 在解压目录运行 `./start-game.sh`。脚本自动打开浏览器。关闭启动窗口或按 Ctrl+C 退出。
 
 下载包已包含客户端和服务端构建文件，启动只需 Node.js。
 
