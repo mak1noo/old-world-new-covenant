@@ -19,7 +19,7 @@ export type LogEntry = {
 };
 export type Game = {
   rng: number; nextId: number; nextUnitId: [number, number]; players: [Player, Player]; phase: 'prep' | 'battle' | 'finished';
-  playerHpLimit: number; battle: number; round: number; first: Side; active: Side; progress: boolean; noDamageRounds: number; winner: Side | null;
+  playerHpLimit: number; battle: number; round: number; attackRounds: [number, number]; first: Side; active: Side; progress: boolean; noDamageRounds: number; winner: Side | null;
   log: LogEntry[]; pending?: PendingChoice;
 };
 type Choice = { side: Side; label: string; options: { value: number; label: string }[] };
@@ -140,6 +140,7 @@ function activeSkills(player: Player, effect: string) {
 function prep(state: Game): void {
   state.phase = 'prep';
   state.round = 0;
+  state.attackRounds = [0, 0];
   for (const player of state.players) {
     for (const skill of activeSkills(player, 'lp_income_per_5_lp')) {
       player.lp += Math.min(Number(skill.params.capLp),
@@ -157,7 +158,7 @@ export function createGame({ seed = 1, playerHp = constants.playerHp }: { seed?:
   rule(Number.isSafeInteger(playerHp) && playerHp > 0, '初始生命必须为正整数');
   const state: Game = {
     rng: seed >>> 0, nextId: 1, nextUnitId: [101, 102], players: [] as unknown as Game['players'], phase: 'prep', playerHpLimit: playerHp, battle: 1,
-    round: 0, first: 0, active: 0, progress: false, noDamageRounds: 0, winner: null, log: [],
+    round: 0, attackRounds: [0, 0], first: 0, active: 0, progress: false, noDamageRounds: 0, winner: null, log: [],
   };
   const createPlayer = (): Player => {
     const deck = constants.serials.flatMap(printed => Array.from({ length: constants.deckSerialCopies },
@@ -402,6 +403,7 @@ function startBattle(state: Game, resolution: Resolution): void {
   state.first = difference === 0 ? (random(state) < 0.5 ? 0 : 1) : difference > 0 ? 0 : 1;
   state.active = state.first;
   state.round = 1;
+  state.attackRounds = [1, 1];
   state.progress = false;
   state.noDamageRounds = 0;
   for (const player of state.players) for (const unit of units(player)) {
@@ -809,28 +811,32 @@ function beginSmallRound(state: Game, side: Side): void {
 }
 function advanceBattle(state: Game, actedSide: Side): void {
   if (finishIfEmpty(state)) return;
-  const opponent = other(actedSide);
-  if (units(state.players[opponent]).some(unit => !unit.acted)) {
-    beginSmallRound(state, opponent);
-    return;
+
+  for (const side of [0, 1] as const) {
+    const lineup = units(state.players[side]);
+    if (!lineup.every(unit => unit.acted)) continue;
+    state.attackRounds[side]++;
+    for (const unit of lineup) unit.acted = unit.flipped = false;
   }
-  if (units(state.players[actedSide]).some(unit => !unit.acted)) {
-    beginSmallRound(state, actedSide);
-    return;
-  }
-  state.noDamageRounds = state.progress ? 0 : state.noDamageRounds + 1;
-  const leader = compare(units(state.players[0]).length, units(state.players[1]).length);
-  if (state.noDamageRounds >= constants.drawAfterNoDamageRounds) {
-    finishBattle(state, null);
-  } else if (state.round >= constants.battleRoundCap && leader !== null) {
-    finishBattle(state, leader);
-  } else {
-    state.log.push({ kind: 'round', text: `第 ${state.round} 战斗轮次结束`, battle: state.battle, round: state.round });
-    state.round++;
+
+  // A battle settlement round advances when both sides have completed another attack round.
+  const nextRound = Math.min(...state.attackRounds);
+  if (nextRound > state.round) {
+    state.noDamageRounds = state.progress ? 0 : state.noDamageRounds + 1;
+    const leader = compare(units(state.players[0]).length, units(state.players[1]).length);
+    if (state.noDamageRounds >= constants.drawAfterNoDamageRounds) {
+      finishBattle(state, null);
+      return;
+    }
+    if (state.round >= constants.battleRoundCap && leader !== null) {
+      finishBattle(state, leader);
+      return;
+    }
+    state.log.push({ kind: 'round', text: `第 ${state.round} 战斗结算轮结束`, battle: state.battle, round: state.round });
+    state.round = nextRound;
     state.progress = false;
-    for (const player of state.players) for (const unit of units(player)) unit.acted = unit.flipped = false;
-    beginSmallRound(state, state.first);
   }
+  beginSmallRound(state, other(actedSide));
 }
 function battleAction(state: Game, side: Side, intent: Intent, resolution: Resolution): void {
   rule(side === state.active, '尚未轮到该玩家');

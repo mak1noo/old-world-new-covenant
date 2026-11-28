@@ -13,6 +13,7 @@ function stage(): Game {
   const game = createGame();
   game.phase = 'battle';
   game.round = 1;
+  game.attackRounds = [1, 1];
   return game;
 }
 const attack = (game: Game, from: Unit, to?: Unit, side: Side = 0) =>
@@ -179,7 +180,8 @@ test('螺旋终灭双格各为 2 普通和 8 真伤，下次从第二目标的�
     const nextSpiral = result.players[0].field[2]!;
     expect(nextSpiral.sweep).toEqual({ column: 2, step });
     expect(attackOptions(result, 0, nextSpiral).targets.map(unit => unit.id)).toEqual([third.id]);
-    expect(nextSpiral.acted).toBe(true);
+    expect(nextSpiral.acted).toBe(false);
+    expect(result.attackRounds).toEqual([2, 1]);
   }
 });
 test('螺旋双格跳空，不重复命中，并绕过鱼人庇护和圣域', () => {
@@ -199,6 +201,7 @@ test('螺旋双格跳空，不重复命中，并绕过鱼人庇护和圣域', ()
 test('圣龙第十轮打堆尸仍为 15，受中位圣域时显示由 15 抵挡至 10', () => {
   const game = stage();
   game.round = 10;
+  game.attackRounds = [10, 10];
   const holy = put(game, 0, 2, '圣龙');
   const pile = put(game, 1, 2, '堆尸', 2);
   expect(attack(game, holy, pile).log.find(entry => entry.kind === 'damage')).toMatchObject({ amount: 15 });
@@ -207,7 +210,7 @@ test('圣龙第十轮打堆尸仍为 15，受中位圣域时显示由 15 抵挡�
   expect(damage).toMatchObject({ amount: 10, before: 18, after: 8, text: expect.stringContaining('普通 15→10 · 圣域抵挡 5') });
 });
 test('圣域按入射普通伤害的 5、10、11 边界判档，混伤的真伤不计入', () => {
-  for (const [name, star, expected] of [['士兵棋', 2, 2], ['死尸', 3, 6], ['螺旋终灭', 1, 15]] as const) {
+  for (const [name, star, expected] of [['士兵棋', 2, 2], ['死尸', 3, 2], ['螺旋终灭', 1, 15]] as const) {
     const game = stage();
     const source = put(game, 0, 2, name, star);
     put(game, 0, 0, '4');

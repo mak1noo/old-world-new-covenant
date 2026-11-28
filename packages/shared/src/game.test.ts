@@ -147,6 +147,44 @@ describe('战斗轮次与终局', () => {
     expect(game.log.slice(-2).map(entry => entry.kind)).toEqual(['closing', 'result']);
     expect(game.log.at(-1)).toMatchObject({ player: 1, amount: 1, before: constants.playerHp, after: constants.playerHp - 1 });
   });
+  test('一对四仍交替攻击，单从者在每次轮到时都有行动资格', () => {
+    let game = place(createGame(), 0, fusion('国王'), 2);
+    for (const slot of [0, 1, 2, 4]) game = place(game, 1, base('6'), slot);
+    game = ready(game);
+    game.players[0].field[2]!.hp = game.players[1].field[2]!.hp = 40;
+    const soloId = game.players[0].field[2]!.id;
+    const enemies = units(game.players[1]);
+    for (let index = 0; index < enemies.length; index++) {
+      expect(game.active).toBe(1);
+      const attacker = enemies[index];
+      game = apply(game, 1, { type: 'attack', id: attacker.id, target: soloId });
+      expect(game.active).toBe(0);
+      expect(game.players[0].field[2]?.acted).toBe(false);
+      game = apply(game, 0, { type: 'attack', id: soloId, target: enemies[2].id });
+      expect(game.active).toBe(1);
+      expect(game.attackRounds).toEqual([index + 2, index === 3 ? 2 : 1]);
+      if (index < 3) {
+        expect(units(game.players[1]).filter(unit => unit.acted).map(unit => unit.id))
+          .toEqual(enemies.slice(0, index + 1).map(unit => unit.id));
+      }
+    }
+    expect(game.round).toBe(2);
+    expect(units(game.players[1]).every(unit => !unit.acted)).toBe(true);
+  });
+  test('未行动的从者退场后，已行动的唯一幸存者立即刷新', () => {
+    let game = place(place(place(createGame(), 0, base('1'), 2), 1, base('4'), 2), 1, base('4'), 4);
+    game = ready(game);
+    expect(game.active).toBe(1);
+    const reserve = game.players[1].field[4]!;
+    game = apply(game, 1, { type: 'skip', id: reserve.id });
+    expect(game.players[1].field[4]?.acted).toBe(true);
+    const bird = game.players[0].field[2]!;
+    game = apply(game, 0, { type: 'attack', id: bird.id, target: game.players[1].field[2]!.id });
+    expect(game.active).toBe(1);
+    expect(game.attackRounds).toEqual([2, 2]);
+    expect(game.players[1].field[4]?.acted).toBe(false);
+    expect(() => apply(game, 1, { type: 'skip', id: reserve.id })).not.toThrow();
+  });
   test('连续五个完整轮次未伤害才提前平局，50 场空场平局后终局', () => {
     let game = createGame();
     game = place(game, 0, base('1'), 0);
@@ -186,6 +224,7 @@ describe('战斗轮次与终局', () => {
     let game = ready(place(place(createGame(), 0, base('2'), 2), 1, base('8'), 2));
     game.players[1].field[2]!.hp = 8;
     game.round = 50;
+    game.attackRounds = [50, 50];
     game.noDamageRounds = 4;
     for (let i = 0; i < 2; i++) {
       const side = game.active;
@@ -200,6 +239,7 @@ describe('战斗轮次与终局', () => {
     game = place(game, 1, base('4'), 4);
     game = ready(game);
     game.round = 50;
+    game.attackRounds = [50, 50];
     while (game.phase === 'battle') {
       const side = game.active;
       const unit = units(game.players[side]).find(unit => !unit.acted)!;

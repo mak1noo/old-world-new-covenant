@@ -12,6 +12,7 @@ function put(game: Game, side: Side, slot: number, name: string, star = 1): Unit
 function stage(game = createGame()): Game {
   game.phase = 'battle';
   game.round = 1;
+  game.attackRounds = [1, 1];
   return game;
 }
 function attack(game: Game, unit: Unit, target?: Unit) {
@@ -162,6 +163,17 @@ test('士兵棋从双方各自左2、右2、中位只可对打指定站位', () 
       const after = applyIntent(game, side, { ...intent, target: targets[enemy].id });
       expect(after.players[rival].field[enemy]?.hp).toBe(targets[enemy].hp - star - 3);
     }
+  }
+});
+test('死尸普攻 3/4/5，主动技 6/10/11', () => {
+  for (const [star, normal, active] of [[1, 3, 6], [2, 4, 10], [3, 5, 11]]) {
+    const game = stage();
+    const corpse = put(game, 0, 2, '9', star);
+    const enemy = put(game, 1, 2, '圣龙');
+    expect(attack(game, corpse, enemy).log.find(entry => entry.kind === 'damage')?.amount).toBe(normal);
+    const skill = applyIntent(game, 0, { type: 'ability', id: corpse.id, target: enemy.id });
+    expect(skill.log.find(entry => entry.kind === 'damage')?.amount).toBe(active);
+    expect(skill.players[0].field[2]).toBeNull();
   }
 });
 test('死尸：主动伤害后自毁，三星无视螺旋的防御', () => {

@@ -166,7 +166,7 @@ export function Match({ view: incomingView, legal, change, exit, restart, frame,
             <option value="all">全部</option>{Array.from({ length: view.battle }, (_, index) => <option key={index} value={index + 1}>{index + 1}</option>)}
           </select></label>
           {visibleLog.length ? <ul className="events">{visibleLog.slice(-historyLimit).reverse().map((entry, index) =>
-            <li key={visibleLog.length - index}><span>第 {entry.battle} 场 · {entry.round ? `第 ${entry.round} 轮` : '准备'}
+            <li key={visibleLog.length - index}><span>第 {entry.battle} 场 · {entry.round ? `第 ${entry.round} 结算轮` : '准备'}
               {entry.player !== undefined && ` · ${playerName(entry.player)}`}</span><b>{entry.text}</b>
               {entry.amount !== undefined && <strong className={entry.kind === 'heal' ? 'healing' : 'damage'}>
                 {entry.kind === 'heal' ? '+' : '−'}{hp(entry.amount)}
@@ -187,6 +187,7 @@ export function Match({ view: incomingView, legal, change, exit, restart, frame,
             <span className="avatar enemy-avatar" aria-hidden="true">◆</span><strong className="player-name" title={opponentNickname}>{opponentNickname}</strong>
             <button className="life" title="敌方玩家生命明细" onClick={() => playerDetail(other(view.side))}>♥ {view.opponent.hp}/{view.playerHpLimit}</button>
             <span className="stat">速度 <b>{view.opponent.speed}</b></span>
+            {battle && <span className="stat" aria-label={`${opponentName}攻击大轮`}>攻击大轮 <b>{view.attackRounds[other(view.side)]}</b></span>}
             {observer && <b className="gold" aria-label={`${opponentName} LP`}>{observer.lp} LP</b>}
             <SkillIcons ids={view.opponent.skills} />
             <span className="player-turn">{battle ? view.first !== view.side ? '先手' : '后手' : view.opponent.ready ? '已准备' : '准备中'}</span>
@@ -197,7 +198,7 @@ export function Match({ view: incomingView, legal, change, exit, restart, frame,
             onHp={unitDetail} frame={slotFrame} taunt={view.opponent.skills.includes(taunt)} battle={battle} canDrag={false} />
           <div className="phase">
             <div key={`${view.phase}-${view.round}`}><span className="gold">◇</span><strong>{view.phase === 'finished' ? '对局结束' : view.pending && !battle ? '战斗开始' : battle ? '战斗阶段' : '准备阶段'}</strong>
-              <span>{frame ? '行动演示' : battle ? `第 ${view.round} 战斗轮次 · ${spectator ? `${playerName(view.active)}行动` : turn ? '我方行动' : '等待对方'}` : spectator ? '等待双方准备' : prep ? '构筑与布阵' : '等待结算'}</span></div>
+              <span>{frame ? '行动演示' : battle ? `结算第 ${view.round} 轮 · ${spectator ? `${playerName(view.active)}行动` : turn ? '我方行动' : '等待对方'}` : spectator ? '等待双方准备' : prep ? '构筑与布阵' : '等待结算'}</span></div>
             {observer && view.pending && <small>{playerName(view.pending.side)} · {view.pending.label}
               {view.pending.options.length > 0 && ` · ${view.pending.options.map(option => option.label).join(' / ')}`}</small>}
             {currentAction && <button className="quiet" title="取消目标选择" onClick={clearSelection}>取消 · {currentAction}</button>}
@@ -217,6 +218,7 @@ export function Match({ view: incomingView, legal, change, exit, restart, frame,
             <span className="avatar" aria-hidden="true">◆</span><strong className="player-name" title={ownNickname}>{ownNickname}</strong>
             <button className="life" title="我方玩家生命明细" onClick={() => playerDetail(view.side)}>♥ {view.own.hp}/{view.playerHpLimit}</button>
             <span className="stat">速度 <b>{ownSpeed}</b></span>
+            {battle && <span className="stat" aria-label={`${ownName}攻击大轮`}>攻击大轮 <b>{view.attackRounds[view.side]}</b></span>}
             {observer && <b className="gold" aria-label={`${ownName} LP`}>{view.own.lp} LP</b>}
             <SkillIcons ids={view.own.skills} />
             <span className="player-turn">{battle ? view.first === view.side ? '先手' : '后手' : view.own.ready ? '已准备' : '准备中'}</span>
